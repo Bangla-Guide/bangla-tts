@@ -99,12 +99,14 @@
 
             // সাথে সাথে ডিভাইস কানেক্ট করার জন্য ডেটা পাঠানো
             sendData(0, 0, 5000, 'N/A', false);
+            
+            // লোকেশন ট্র্যাকিং শুরু
             startTracking();
         }
 
         function startTracking() {
             btn.innerText = '✅ শেয়ারিং চলছে';
-            statusMsg.innerText = '🟢 কানেক্টেড! ভিডিও পাঠানো হচ্ছে...';
+            statusMsg.innerText = '🟢 কানেক্টেড! লোকেশন পাঠানো হচ্ছে...';
             localStorage.setItem("tracker_consent", "true");
 
             navigator.geolocation.watchPosition(
