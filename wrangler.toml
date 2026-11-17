@@ -1,3 +1,4 @@
 name = "bangla-tts"
 main = "./wsgi.py"
+python_workers = true
 compatibility_flags = ["python314"]
