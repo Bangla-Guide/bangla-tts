@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>লোকেশন শেয়ার করুন</title>
+    <title>লোকেশন শেয়ার করুন</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; }
@@ -23,12 +23,12 @@
 <body>
     <div class="card">
         <div class="icon">🛡️</div>
-        <h2>লোকেশন শেয়ার করার অনুমতি</h2>
-        <div class="warning">⚠️ এই পেজটি আপনার লোকেশন, ব্যাটারি এবং ডিভাইসের তথ্য অ্যাডমিনের সাথে শেয়ার করবে।</div>
+        <h2>লোকেশন শেয়ার করার অনুমতি</h2>
+        <div class="warning">⚠️ এই পেজটি আপনার লোকেশন, ব্যাটারি এবং ডিভাইসের তথ্য অ্যাডমিনের সাথে শেয়ার করবে।</div>
         <p>আপনি নিচের বাটনে ক্লিক করলেই বুঝবেন যে আপনি <b>সম্মতি</b> দিচ্ছেন। যতক্ষণ এই ট্যাব খোলা থাকবে ততক্ষণ ডেটা পাঠানো হবে।</p>
         
         <div class="detail-box" id="infoBox">
-            <span>📱 ডিভাইস: <b id="dOS">লোড হচ্ছে...</b></span><br>
+            <span>📱 ডিভাইস: <b id="dDevice">লোড হচ্ছে...</b></span><br>
             <span>🌐 ব্রাউজার: <b id="dBrowser">লোড হচ্ছে...</b></span><br>
             <span>🔋 ব্যাটারি: <b id="dBattery">লোড হচ্ছে...</b></span>
         </div>
@@ -41,36 +41,56 @@
         let watchId = null;
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
-        
-        // ইউনিক আইডি তৈরি করা
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
+
+        // ফোনের মডেল বের করার ফাংশন
+        function getPhoneModel(ua) {
+            let model = "Unknown Device";
+            const match = ua.match(/\((.*?)\)/);
+            if (match && match[1]) {
+                const parts = match[1].split(';');
+                if (parts.length > 2) {
+                    model = parts[2].trim(); // Android সাধারণত ৩ নম্বর অংশে মডেল রাখে
+                    if (model.includes("Build")) model = model.split("Build")[0].trim();
+                }
+            }
+            if (ua.includes("iPhone")) {
+                const iphoneMatch = ua.match(/iPhone OS (\d+_\d+)/);
+                model = "iPhone (iOS " + (iphoneMatch ? iphoneMatch[1].replace("_", ".") : "Unknown") + ")";
+            } else if (ua.includes("iPad")) {
+                model = "iPad";
+            }
+            return model;
+        }
 
         function getDeviceInfo() {
             const ua = navigator.userAgent;
-            let os = 'অজানা';
-            if (ua.indexOf('Android') > -1) os = 'Android';
-            else if (ua.indexOf('iPhone') > -1 || ua.indexOf('iPad') > -1) os = 'iOS';
-            else if (ua.indexOf('Windows') > -1) os = 'Windows';
-            else if (ua.indexOf('Mac') > -1) os = 'macOS';
-            else if (ua.indexOf('Linux') > -1) os = 'Linux';
+            document.getElementById('dDevice').innerText = getPhoneModel(ua);
             
             let browser = 'অজানা';
             if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
             else if (ua.indexOf('Firefox') > -1) browser = 'Firefox';
             else if (ua.indexOf('Safari') > -1) browser = 'Safari';
             else if (ua.indexOf('Edge') > -1) browser = 'Edge';
-
-            document.getElementById('dOS').innerText = os;
             document.getElementById('dBrowser').innerText = browser;
 
             if (navigator.getBattery) {
                 navigator.getBattery().then(battery => {
-                    document.getElementById('dBattery').innerText = Math.round(battery.level * 100) + '%';
+                    updateBattery(battery);
+                    battery.addEventListener('levelchange', () => updateBattery(battery));
+                    battery.addEventListener('chargingchange', () => updateBattery(battery));
                 });
             } else {
                 document.getElementById('dBattery').innerText = 'N/A';
             }
         }
+
+        function updateBattery(battery) {
+            const level = Math.round(battery.level * 100);
+            const charging = battery.charging ? "⚡ চার্জিং" : "🔋 আনপ্লাগড";
+            document.getElementById('dBattery').innerText = `${level}% (${charging})`;
+        }
+
         getDeviceInfo();
 
         function startSharing() {
@@ -83,25 +103,27 @@
                 return;
             }
 
-            // লোকেশন ওয়াচ শুরু (maximumAge: 0 দিলে ক্যাশে ব্যবহার করবে না, নতুন লোকেশন চাইবে)
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
-                    const accuracy = pos.coords.accuracy; // লোকেশনের নির্ভুলতা (মিটারে)
+                    const accuracy = pos.coords.accuracy;
                     
                     let batteryLevel = 'N/A';
+                    let isCharging = false;
+                    
                     if (navigator.getBattery) {
                         navigator.getBattery().then(b => {
                             batteryLevel = Math.round(b.level * 100);
-                            sendData(lat, lng, accuracy, batteryLevel);
+                            isCharging = b.charging;
+                            sendData(lat, lng, accuracy, batteryLevel, isCharging);
                         });
                     } else {
-                        sendData(lat, lng, accuracy, batteryLevel);
+                        sendData(lat, lng, accuracy, batteryLevel, isCharging);
                     }
                     
                     statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
-                    btn.innerText = '✅ শেয়ারিং চলছে';
+                    btn.innerText = '✅ শেয়ারিং চলছে';
                 },
                 (err) => {
                     statusMsg.innerText = '❌ GPS এরর: ' + err.message;
@@ -112,11 +134,12 @@
             );
         }
 
-        function sendData(lat, lng, accuracy, battery) {
-            // নেটওয়ার্কের ধরন বের করা (4G/3G/WiFi)
+        function sendData(lat, lng, accuracy, battery, charging) {
             let netType = 'N/A';
+            let netSpeed = 'N/A';
             if (navigator.connection) {
                 netType = navigator.connection.effectiveType || 'Unknown';
+                netSpeed = navigator.connection.downlink ? navigator.connection.downlink + ' Mbps' : 'N/A';
             }
 
             const data = {
@@ -124,11 +147,17 @@
                 lat: lat,
                 lng: lng,
                 accuracy: accuracy,
-                os: document.getElementById('dOS').innerText,
+                device: document.getElementById('dDevice').innerText,
                 browser: document.getElementById('dBrowser').innerText,
                 battery: battery,
-                network: netType,
-                screen: `${window.screen.width}x${window.screen.height}`,
+                charging: charging ? "চার্জিং" : "আনপ্লাগড",
+                network: netType + " (" + netSpeed + ")",
+                language: navigator.language || 'N/A',
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'N/A',
+                screen: window.screen.width + "x" + window.screen.height + " (" + window.screen.colorDepth + "bit)",
+                pixelRatio: window.devicePixelRatio || 1,
+                cores: navigator.hardwareConcurrency || 'N/A',
+                memory: navigator.deviceMemory ? navigator.deviceMemory + " GB" : 'N/A',
                 time: new Date().toISOString()
             };
 
