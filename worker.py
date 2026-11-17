@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import json
 
+# ডেটা সাময়িকভাবে রাখার জন্য ডিকশনারি
 clients = {}
 
 class Default(WorkerEntrypoint):
@@ -17,14 +18,17 @@ class Default(WorkerEntrypoint):
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
+        # ১. অ্যাডমিন পেজ রুট (/)
         if path in ("", "/") and request.method == "GET":
             admin_file = Path(__file__).parent / "templates" / "admin.html"
             return Response(admin_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
 
+        # ২. টার্গেট পেজ (/target)
         if path == "/target" and request.method == "GET":
             target_file = Path(__file__).parent / "templates" / "target.html"
             return Response(target_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
 
+        # ৩. টার্গেট থেকে ডেটা রিসিভ করা (/api/update)
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
@@ -52,6 +56,7 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
+        # ৪. অ্যাডমিনের জন্য ডেটা রিড করা (/api/clients)
         if path == "/api/clients" and request.method == "GET":
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
