@@ -9,3 +9,7 @@ dev = [
     "workers-py",
     "workers-runtime-sdk"
 ]
+
+[tool.setuptools.packages.find]
+include = ["worker*"]
+exclude = ["templates*", "node_modules*"]
