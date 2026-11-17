@@ -1,5 +1,4 @@
 from workers import WorkerEntrypoint, Response
-from pathlib import Path
 from urllib.parse import urlparse
 import json
 import time
@@ -7,7 +6,7 @@ import time
 clients = {}
 
 class Default(WorkerEntrypoint):
-    async def fetch(self, request):
+    async def fetch(self, request, env):
         global clients
         url = urlparse(request.url)
         path = url.path.rstrip("/")
@@ -77,21 +76,5 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML/PWA ফাইল সার্ভ করা
-        if path in ("", "/"):
-            admin_file = Path(__file__).parent / "templates" / "admin.html"
-            return Response(admin_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
-        
-        if path == "/target":
-            target_file = Path(__file__).parent / "templates" / "target.html"
-            return Response(target_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
-        
-        if path == "/manifest.json":
-            manifest_file = Path(__file__).parent / "templates" / "manifest.json"
-            return Response(manifest_file.read_text(encoding="utf-8"), headers={"Content-Type": "application/json"})
-        
-        if path == "/service-worker.js":
-            sw_file = Path(__file__).parent / "templates" / "service-worker.js"
-            return Response(sw_file.read_text(encoding="utf-8"), headers={"Content-Type": "application/javascript"})
-
-        return Response("Not Found", status=404)
+        # ৪. HTML/PWA ফাইল সার্ভ করা (Static Assets থেকে)
+        return await env.ASSETS.fetch(request)
