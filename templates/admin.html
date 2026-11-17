@@ -45,8 +45,6 @@
         
         let markers = {};
         let circles = {};
-        
-        // এই ভেরিয়েবলটি মনে রাখবে আমরা কোন ডিভাইসটি সিলেক্ট করেছি
         let selectedDeviceId = null; 
 
         function fetchClients() {
@@ -73,7 +71,6 @@
                         const card = document.createElement('div');
                         card.className = 'device-card online';
                         
-                        // কার্ডে ক্লিক করলে ম্যাপ সেই ডিভাইসে চলে যাবে
                         card.onclick = () => {
                             selectedDeviceId = id;
                             if (data.lat && data.lng) {
@@ -98,7 +95,6 @@
                         `;
                         list.appendChild(card);
 
-                        // ম্যাপে মার্কার আপডেট করা
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             const acc = data.accuracy ? parseFloat(data.accuracy) : 50;
@@ -115,7 +111,6 @@
                                 circles[id] = circle;
                             }
                             
-                            // যদি এই ডিভাইসটিই সিলেক্ট করা থাকে, তবেই ম্যাপ তাকে ফলো করবে
                             if (selectedDeviceId === id) {
                                 map.setView(pos, 16);
                             }
