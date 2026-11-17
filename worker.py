@@ -62,6 +62,10 @@ class Default(WorkerEntrypoint):
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/clients" and request.method == "GET":
+            now = time.time()
+            # ১৫ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা
+            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 15}
+            clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/command" and request.method == "POST":
