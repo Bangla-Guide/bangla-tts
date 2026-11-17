@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>লোকেশন শেয়ার করুন</title>
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; }
@@ -39,10 +38,12 @@
     </div>
 
     <script>
-        const socket = io();
         let watchId = null;
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
+        
+        // ইউনিক আইডি তৈরি করা (প্রতিটা ডিভাইস আলাদা করার জন্য)
+        const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
         function getDeviceInfo() {
             const ua = navigator.userAgent;
@@ -92,18 +93,14 @@
                     if (navigator.getBattery) {
                         navigator.getBattery().then(b => {
                             batteryLevel = Math.round(b.level * 100);
+                            
+                            // ডেটা সার্ভারে পাঠানো (fetch API দিয়ে)
+                            sendData(lat, lng, batteryLevel);
                         });
+                    } else {
+                        sendData(lat, lng, batteryLevel);
                     }
-
-                    const data = {
-                        lat: lat,
-                        lng: lng,
-                        os: document.getElementById('dOS').innerText,
-                        browser: document.getElementById('dBrowser').innerText,
-                        battery: batteryLevel,
-                        time: new Date().toISOString()
-                    };
-                    socket.emit('client-data', data);
+                    
                     statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
                     btn.innerText = '✅ শেয়ারিং চলছে';
                 },
@@ -114,6 +111,26 @@
                 },
                 { enableHighAccuracy: true, timeout: 10000 }
             );
+        }
+
+        function sendData(lat, lng, battery) {
+            const data = {
+                id: clientId,
+                lat: lat,
+                lng: lng,
+                os: document.getElementById('dOS').innerText,
+                browser: document.getElementById('dBrowser').innerText,
+                battery: battery,
+                time: new Date().toISOString()
+            };
+
+            fetch('/api/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            }).catch(err => console.error("ডেটা পাঠাতে সমস্যা:", err));
         }
     </script>
 </body>
