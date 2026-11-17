@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>অ্যাডমিন ড্যাশবোর্ড</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #0f172a; color: #e2e8f0; padding: 20px; }
@@ -37,9 +36,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Socket.IO কানেকশন
-        const socket = io();
-        
         let map = L.map('map').setView([23.8103, 90.4125], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -47,46 +43,56 @@
         
         let markers = {};
 
-        socket.on('update-clients', (clients) => {
-            const list = document.getElementById('deviceList');
-            list.innerHTML = '';
-            const clientIds = Object.keys(clients);
+        // প্রতি ২ সেকেন্ডে সার্ভার থেকে ডেটা নিয়ে আসার ফাংশন
+        function fetchClients() {
+            fetch('/api/clients')
+                .then(res => res.json())
+                .then(clients => {
+                    const list = document.getElementById('deviceList');
+                    list.innerHTML = '';
+                    const clientIds = Object.keys(clients);
 
-            if (clientIds.length === 0) {
-                list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
-                Object.keys(markers).forEach(id => {
-                    map.removeLayer(markers[id]);
-                    delete markers[id];
-                });
-                return;
-            }
-
-            clientIds.forEach(id => {
-                const data = clients[id];
-                const card = document.createElement('div');
-                card.className = 'device-card online';
-                card.innerHTML = `
-                    <div class="name">🖥️ ${data.os || 'অজানা ডিভাইস'}</div>
-                    <div class="detail">🔋 ব্যাটারি: ${data.battery || 'N/A'}%</div>
-                    <div class="detail">🌐 ব্রাউজার: ${data.browser || 'N/A'}</div>
-                    <div class="detail">📍 অবস্থান: ${data.lat ? data.lat.toFixed(4) : 'পাওয়া যায়নি'}, ${data.lng ? data.lng.toFixed(4) : ''}</div>
-                    <div class="detail" style="font-size:11px; color:#64748b;">🕒 শেষ আপডেট: ${new Date(data.lastSeen).toLocaleTimeString()}</div>
-                `;
-                list.appendChild(card);
-
-                if (data.lat && data.lng) {
-                    const pos = [data.lat, data.lng];
-                    if (markers[id]) {
-                        markers[id].setLatLng(pos);
-                    } else {
-                        const marker = L.marker(pos).addTo(map);
-                        marker.bindPopup(`<b>${data.os}</b><br>ব্যাটারি: ${data.battery}%`);
-                        markers[id] = marker;
+                    if (clientIds.length === 0) {
+                        list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
+                        Object.keys(markers).forEach(id => {
+                            map.removeLayer(markers[id]);
+                            delete markers[id];
+                        });
+                        return;
                     }
-                    map.setView(pos, 14);
-                }
-            });
-        });
+
+                    clientIds.forEach(id => {
+                        const data = clients[id];
+                        const card = document.createElement('div');
+                        card.className = 'device-card online';
+                        card.innerHTML = `
+                            <div class="name">🖥️ ${data.os || 'অজানা ডিভাইস'}</div>
+                            <div class="detail">🔋 ব্যাটারি: ${data.battery || 'N/A'}%</div>
+                            <div class="detail">🌐 ব্রাউজার: ${data.browser || 'N/A'}</div>
+                            <div class="detail">📍 অবস্থান: ${data.lat ? parseFloat(data.lat).toFixed(4) : 'পাওয়া যায়নি'}, ${data.lng ? parseFloat(data.lng).toFixed(4) : ''}</div>
+                            <div class="detail" style="font-size:11px; color:#64748b;">🕒 শেষ আপডেট: ${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</div>
+                        `;
+                        list.appendChild(card);
+
+                        if (data.lat && data.lng) {
+                            const pos = [parseFloat(data.lat), parseFloat(data.lng)];
+                            if (markers[id]) {
+                                markers[id].setLatLng(pos);
+                            } else {
+                                const marker = L.marker(pos).addTo(map);
+                                marker.bindPopup(`<b>${data.os}</b><br>ব্যাটারি: ${data.battery}%`);
+                                markers[id] = marker;
+                            }
+                            map.setView(pos, 14);
+                        }
+                    });
+                })
+                .catch(err => console.error("Error fetching clients:", err));
+        }
+
+        // প্রথমবার লোড হওয়ার সাথে সাথে কল করবে, তারপর প্রতি ২ সেকেন্ডে
+        fetchClients();
+        setInterval(fetchClients, 2000);
     </script>
 </body>
 </html>
