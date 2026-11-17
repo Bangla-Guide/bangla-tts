@@ -22,7 +22,6 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-    // API রিকোয়েস্ট ক্যাশে করবে না
     if (event.request.url.includes('/api/')) {
         return;
     }
