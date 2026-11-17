@@ -43,14 +43,13 @@
         const statusMsg = document.getElementById('statusMsg');
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
-        // ফোনের মডেল বের করার ফাংশন
         function getPhoneModel(ua) {
             let model = "Unknown Device";
             const match = ua.match(/\((.*?)\)/);
             if (match && match[1]) {
                 const parts = match[1].split(';');
                 if (parts.length > 2) {
-                    model = parts[2].trim(); // Android সাধারণত ৩ নম্বর অংশে মডেল রাখে
+                    model = parts[2].trim();
                     if (model.includes("Build")) model = model.split("Build")[0].trim();
                 }
             }
