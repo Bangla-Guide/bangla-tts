@@ -56,7 +56,6 @@ class Default(WorkerEntrypoint):
         # ২. API রুট (ডিভাইস লিস্ট)
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            # ১৫ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা
             active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 15}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
@@ -78,4 +77,8 @@ class Default(WorkerEntrypoint):
             return Response("", headers=cors_headers)
 
         # ৪. PWA এবং HTML স্ট্যাটিক ফাইল (ASSETS বাইন্ডিং থেকে)
-        return await self.env.ASSETS.fetch(request)
+        # এখানে env.ASSETS.fetch() কল করার সঠিক পদ্ধতি
+        try:
+            return await self.env.ASSETS.fetch(request)
+        except Exception as e:
+            return Response(f"Static Assets Error: {str(e)}", status=500)
