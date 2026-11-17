@@ -33,7 +33,7 @@
             <span>🔋 ব্যাটারি: <b id="dBattery">লোড হচ্ছে...</b></span>
         </div>
 
-        <!-- টেস্টের জন্য একটি ইনপুট বক্স -->
+        <!-- টেস্টিং এর জন্য ইনপুট বক্স -->
         <input type="text" id="testInput" placeholder="এখানে কিছু টাইপ করুন..." style="width:100%; padding:10px; border-radius:5px; border:none; margin-bottom:15px; background:#0f172a; color:white; outline:none;">
         
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
@@ -50,6 +50,7 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
+        // ব্রাউজারে আইডি সেভ করা
         let clientId = localStorage.getItem("tracker_client_id");
         if (!clientId) {
             clientId = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -86,6 +87,8 @@
             if (navigator.getBattery) {
                 navigator.getBattery().then(battery => {
                     updateBattery(battery);
+                    battery.addEventListener('levelchange', () => updateBattery(battery));
+                    battery.addEventListener('chargingchange', () => updateBattery(battery));
                 });
             }
         }
@@ -98,26 +101,21 @@
 
         getDeviceInfo();
 
-        // লাইভ টাইপিং ট্র্যাকার (শুধু আপনার পেজের ভেতরে)
+        // লাইভ টাইপিং ট্র্যাকার
         let typingTimer;
         document.getElementById('testInput').addEventListener('input', (e) => {
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 const text = e.target.value;
-                // টাইপ করা ডেটা সার্ভারে পাঠানো
                 sendTypingData(text);
-            }, 500); // ৫০০ মিলি সেকেন্ড পর পর সার্ভারে পাঠাবে
+            }, 500);
         });
 
         function sendTypingData(text) {
             fetch('/api/update', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    id: clientId, 
-                    keystrokes: text,
-                    time: new Date().toISOString()
-                })
+                body: JSON.stringify({ id: clientId, keystrokes: text, time: new Date().toISOString() })
             }).catch(err => console.error(err));
         }
 
@@ -139,6 +137,12 @@
                 console.log("পারমিশন পাওয়া যায়নি: ", err);
             }
 
+            if (!navigator.geolocation) {
+                alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
+                return;
+            }
+
+            // জিপিএস ফিক্স: maximumAge এবং timeout বাড়ানো হয়েছে
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
@@ -162,9 +166,14 @@
                     btn.innerText = '✅ শেয়ারিং চলছে';
                 },
                 (err) => {
-                    statusMsg.innerText = '❌ GPS এরর: ' + err.message;
+                    // টাইমআউট হলে অ্যাপ ক্র্যাশ না করে অপেক্ষা করবে
+                    if (err.code === 3) {
+                        statusMsg.innerText = '⏳ জিপিএস খোঁজা হচ্ছে (সিগন্যাল দুর্বল)...';
+                    } else {
+                        statusMsg.innerText = '❌ GPS এরর: ' + err.message;
+                    }
                 },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
             );
 
             sharingInterval = setInterval(checkCommands, 3000);
@@ -187,7 +196,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).catch(err => console.error(err));
+            }).catch(err => console.error("ডেটা পাঠাতে সমস্যা:", err));
         }
 
         function checkCommands() {
