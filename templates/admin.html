@@ -59,7 +59,6 @@
         </div>
     </div>
 
-    <!-- লাইভ ভিডিও মডাল -->
     <div id="videoModal" class="video-modal">
         <div class="video-container">
             <div class="video-header">
@@ -70,7 +69,6 @@
         </div>
     </div>
 
-    <!-- অডিও মডাল -->
     <div id="audioModal" class="modal">
         <div class="modal-content">
             <h3 style="margin-bottom: 10px; color: #38bdf8;">🎙️ রেকর্ড করা অডিও</h3>
@@ -102,7 +100,6 @@
 
                     if (clientIds.length === 0) {
                         list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
-                        // সব মার্কার রিমুভ
                         Object.keys(markers).forEach(id => {
                             map.removeLayer(markers[id]);
                             delete markers[id];
