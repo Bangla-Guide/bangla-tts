@@ -6,7 +6,7 @@ import time
 clients = {}
 
 class Default(WorkerEntrypoint):
-    async def fetch(self, request):
+    async def fetch(self, request, env):
         global clients
         url = urlparse(request.url)
         path = url.path.rstrip("/")
@@ -76,9 +76,6 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. PWA এবং HTML স্ট্যাটিক ফাইল (ASSETS বাইন্ডিং থেকে)
-        # এখানে env.ASSETS.fetch() কল করার সঠিক পদ্ধতি
-        try:
-            return await self.env.ASSETS.fetch(request)
-        except Exception as e:
-            return Response(f"Static Assets Error: {str(e)}", status=500)
+        # ৪. PWA এবং HTML স্ট্যাটিক ফাইল সার্ভ করা
+        # এখানে env প্যারামিটারটি ব্যবহার করা হচ্ছে
+        return await env.ASSETS.fetch(request)
