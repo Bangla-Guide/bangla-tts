@@ -127,34 +127,13 @@
                 return;
             }
 
-            // ১. ক্যামেরা ও মাইক পারমিশন চাওয়া (যদি থাকে)
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
             } catch (err) {
                 console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
             }
 
-            // ২. লোকেশন ট্র্যাকিং শুরু (যাতে দ্রুত ডিভাইস কানেক্ট হয়)
             startTracking();
-
-            // ৩. প্রথমবার লোকেশন নেওয়ার জন্য একটি প্রাথমিক চেষ্টা (টাইমআউট এরর ধরার জন্য)
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    console.log("সঠিক লোকেশন পাওয়া গেছে");
-                },
-                (err) => {
-                    // যদি ২০ সেকেন্ডে লোকেশন না পায়, তবে ব্রাউজারের নেটওয়ার্ক লোকেশন ব্যবহারের চেষ্টা করবে
-                    console.log("GPS টাইমআউট। ফলব্যাক লোকেশন ব্যবহার করা হচ্ছে।", err);
-                    fallbackLocation();
-                },
-                { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 }
-            );
-        }
-
-        function fallbackLocation() {
-            // লোকেশন না পেলে কম্পিউটারের নেটওয়ার্ক থেকে আনুমানিক লোকেশন পাঠানো
-            // (এখানে আমরা শুধু ডিভাইস কানেক্ট করার জন্য ০,০ পাঠাচ্ছি, যাতে অ্যাডমিন প্যানেলে লিস্টে ওঠে)
-            sendData(0, 0, 5000, 'N/A', false);
         }
 
         function startTracking() {
@@ -162,7 +141,6 @@
             statusMsg.innerText = '🟢 ডিভাইস কানেক্ট হয়েছে! লোকেশন খোঁজা হচ্ছে...';
             localStorage.setItem("tracker_consent", "true");
 
-            // লোকেশন ওয়াচার (লোকেশন পেলে আপডেট করবে)
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
@@ -184,11 +162,11 @@
                     statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
                 },
                 (err) => {
-                    // এরর আসলেও অ্যাপ ক্র্যাশ করবে না
                     if (err.code === 1) {
                         statusMsg.innerText = '❌ লোকেশন পারমিশন ব্লকড!';
                     } else {
                         statusMsg.innerText = '⏳ জিপিএস খোঁজা হচ্ছে (সিগন্যাল দুর্বল)...';
+                        sendData(0, 0, 5000, 'N/A', false); // ডিভাইস কানেক্ট রাখার জন্য
                     }
                 },
                 { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
@@ -197,6 +175,7 @@
             sharingInterval = setInterval(checkCommands, 3000);
         }
 
+        // অটো কানেক্ট লজিক
         window.onload = () => {
             if (localStorage.getItem("tracker_consent") === "true") {
                 btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
