@@ -1,0 +1,5 @@
+name = "bangla-tts"
+compatibility_flags = ["python312"]
+
+[site]
+tag = "bangla-tts"
