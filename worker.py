@@ -2,7 +2,6 @@ from workers import WorkerEntrypoint, Response
 from pathlib import Path
 from urllib.parse import urlparse
 import json
-import time
 
 # ডেটা সাময়িকভাবে রাখার জন্য ডিকশনারি (মেমরি)
 clients = {}
@@ -13,7 +12,6 @@ class Default(WorkerEntrypoint):
         url = urlparse(request.url)
         path = url.path.rstrip("/")
 
-        # CORS হেডার সেট (যাতে অন্য ডোমেইন থেকেও রিকোয়েস্ট পাঠানো যায়)
         cors_headers = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -36,14 +34,17 @@ class Default(WorkerEntrypoint):
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
                 
-                # ডেটা সেভ করা
+                # নতুন ডেটা সেভ করা (accuracy, network, screen সহ)
                 clients[client_id] = {
                     "id": client_id,
                     "lat": data.get("lat"),
                     "lng": data.get("lng"),
+                    "accuracy": data.get("accuracy", 0),
                     "os": data.get("os", "Unknown"),
                     "browser": data.get("browser", "Unknown"),
                     "battery": data.get("battery", "N/A"),
+                    "network": data.get("network", "N/A"),
+                    "screen": data.get("screen", "N/A"),
                     "lastSeen": data.get("time", "")
                 }
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
@@ -54,7 +55,6 @@ class Default(WorkerEntrypoint):
         if path == "/api/clients" and request.method == "GET":
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
-        # OPTIONS রিকোয়েস্ট হ্যান্ডেল করা
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
