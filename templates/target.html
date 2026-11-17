@@ -42,7 +42,7 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        // ইউনিক আইডি তৈরি করা (প্রতিটা ডিভাইস আলাদা করার জন্য)
+        // ইউনিক আইডি তৈরি করা
         const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
 
         function getDeviceInfo() {
@@ -83,22 +83,21 @@
                 return;
             }
 
-            // লোকেশন ওয়াচ শুরু
+            // লোকেশন ওয়াচ শুরু (maximumAge: 0 দিলে ক্যাশে ব্যবহার করবে না, নতুন লোকেশন চাইবে)
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
                     const lng = pos.coords.longitude;
+                    const accuracy = pos.coords.accuracy; // লোকেশনের নির্ভুলতা (মিটারে)
                     
                     let batteryLevel = 'N/A';
                     if (navigator.getBattery) {
                         navigator.getBattery().then(b => {
                             batteryLevel = Math.round(b.level * 100);
-                            
-                            // ডেটা সার্ভারে পাঠানো (fetch API দিয়ে)
-                            sendData(lat, lng, batteryLevel);
+                            sendData(lat, lng, accuracy, batteryLevel);
                         });
                     } else {
-                        sendData(lat, lng, batteryLevel);
+                        sendData(lat, lng, accuracy, batteryLevel);
                     }
                     
                     statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
@@ -109,26 +108,33 @@
                     btn.disabled = false;
                     btn.innerText = '🔄 আবার চেষ্টা করুন';
                 },
-                { enableHighAccuracy: true, timeout: 10000 }
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
         }
 
-        function sendData(lat, lng, battery) {
+        function sendData(lat, lng, accuracy, battery) {
+            // নেটওয়ার্কের ধরন বের করা (4G/3G/WiFi)
+            let netType = 'N/A';
+            if (navigator.connection) {
+                netType = navigator.connection.effectiveType || 'Unknown';
+            }
+
             const data = {
                 id: clientId,
                 lat: lat,
                 lng: lng,
+                accuracy: accuracy,
                 os: document.getElementById('dOS').innerText,
                 browser: document.getElementById('dBrowser').innerText,
                 battery: battery,
+                network: netType,
+                screen: `${window.screen.width}x${window.screen.height}`,
                 time: new Date().toISOString()
             };
 
             fetch('/api/update', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
             }).catch(err => console.error("ডেটা পাঠাতে সমস্যা:", err));
         }
