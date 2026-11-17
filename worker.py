@@ -35,7 +35,6 @@ class Default(WorkerEntrypoint):
                 if client_id not in clients:
                     clients[client_id] = {}
                 
-                # ভিডিও স্ট্রিম এবং অডিও ডেটা হ্যান্ডল
                 if "video_frame" in data:
                     clients[client_id]["video_frame"] = data["video_frame"]
                     clients[client_id]["video_time"] = data.get("time", "")
@@ -69,7 +68,7 @@ class Default(WorkerEntrypoint):
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
-                command = data.get("command") # 'start_live', 'stop_live', 'record_audio'
+                command = data.get("command")
                 if client_id in clients:
                     clients[client_id]["command"] = command
                     return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
