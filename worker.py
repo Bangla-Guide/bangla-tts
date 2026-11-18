@@ -77,4 +77,5 @@ class Default(WorkerEntrypoint):
             return Response("", headers=cors_headers)
 
         # ৪. HTML/PWA ফাইল সার্ভ করা (Static Assets থেকে)
+        # env প্যারামিটারটি এখন সঠিকভাবে পাওয়া যাচ্ছে
         return await env.ASSETS.fetch(request)
