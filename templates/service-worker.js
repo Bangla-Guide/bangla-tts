@@ -1,42 +1,31 @@
-const CACHE_NAME = 'tracker-v2'; // ভার্সন বাড়ানো হলো
+const CACHE_NAME = 'tracker-v3';
 const urlsToCache = ['/', '/target', '/manifest.json'];
 
-self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-    );
+self.addEventListener('install', e => {
+    e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache)));
     self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
-    event.waitUntil(
-        caches.keys().then(cacheNames => {
-            return Promise.all(
-                cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) return caches.delete(cacheName);
-                })
-            );
-        })
+self.addEventListener('activate', e => {
+    e.waitUntil(
+        caches.keys().then(keys =>
+            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+        )
     );
     self.clients.claim();
 });
 
-self.addEventListener('fetch', event => {
-    // PWA-তে API কল ক্যাশে করা যাবে না
-    if (event.request.url.includes('/api/')) {
-        return; 
-    }
-    
-    // বাকি ফাইলগুলোর জন্য নেটওয়ার্ক ফার্স্ট স্ট্র্যাটেজি
-    event.respondWith(
-        fetch(event.request)
-            .then(response => {
-                if (response.status === 200) {
-                    const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseClone));
+self.addEventListener('fetch', e => {
+    if (e.request.url.includes('/api/')) return;  // API ক্যাশে নয়
+    e.respondWith(
+        fetch(e.request)
+            .then(res => {
+                if (res.status === 200) {
+                    const clone = res.clone();
+                    caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
                 }
-                return response;
+                return res;
             })
-            .catch(() => caches.match(event.request))
+            .catch(() => caches.match(e.request))
     );
 });
