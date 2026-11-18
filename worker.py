@@ -57,8 +57,8 @@ class Default(WorkerEntrypoint):
         # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            # ৬০ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা (আগে ছিল ১৫ সেকেন্ড)
-            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 60}
+            # ৩০০ সেকেন্ড (৫ মিনিট) এর বেশি পুরনো ডিভাইস রিমুভ করা
+            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 300}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
@@ -78,7 +78,7 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML/PWA ফাইল সার্ভ করা
+        # ৪. HTML এবং PWA ফাইল সার্ভ করা
         if path in ("", "/"):
             return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
