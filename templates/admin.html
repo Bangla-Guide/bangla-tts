@@ -59,6 +59,7 @@
         </div>
     </div>
 
+    <!-- লাইভ ভিডিও মডাল -->
     <div id="videoModal" class="video-modal">
         <div class="video-container">
             <div class="video-header">
@@ -69,6 +70,7 @@
         </div>
     </div>
 
+    <!-- অডিও মডাল -->
     <div id="audioModal" class="modal">
         <div class="modal-content">
             <h3 style="margin-bottom: 10px; color: #38bdf8;">🎙️ রেকর্ড করা অডিও</h3>
@@ -91,6 +93,7 @@
         let selectedDeviceId = null;
 
         function fetchClients() {
+            // ✅ এখানে cache ব্লক করা হয়েছে: ?t=... এবং cache: 'no-store'
             fetch('/api/clients?t=' + new Date().getTime(), { cache: 'no-store' })
                 .then(res => res.json())
                 .then(clients => {
