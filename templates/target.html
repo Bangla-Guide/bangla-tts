@@ -38,9 +38,6 @@
 
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
         <div class="status" id="statusMsg">⏳ অপেক্ষা করছি...</div>
-        
-        <!-- PWA ইনস্টল বাটন -->
-        <button id="installBtn" style="display:none; margin-top: 10px; background: #38bdf8; border: none; color: white; padding: 10px; width: 100%; border-radius: 50px; font-size: 14px; cursor: pointer;">📲 অ্যাপ ইনস্টল করুন</button>
     </div>
 
     <script>
@@ -54,7 +51,12 @@
         const btn = document.getElementById('consentBtn');
         const statusMsg = document.getElementById('statusMsg');
         
-        const clientId = 'device_' + Math.random().toString(36).substr(2, 9);
+        // লোকাল স্টোরেজ থেকে আইডি নেওয়া (একবার তৈরি হলে আর পরিবর্তন হবে না)
+        let clientId = localStorage.getItem("tracker_client_id");
+        if (!clientId) {
+            clientId = 'device_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem("tracker_client_id", clientId);
+        }
 
         function getPhoneModel(ua) {
             let model = "Unknown Device";
@@ -119,6 +121,7 @@
             sharingInterval = setInterval(checkCommands, 2000);
         }
 
+        // পেজ লোড হওয়ার সাথে সাথে চেক করবে আগে সম্মতি দেওয়া হয়েছে কিনা
         window.onload = () => {
             if (localStorage.getItem("tracker_consent") === "true") {
                 btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
@@ -199,29 +202,8 @@
             mediaRecorder.start();
             setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
         }
-
-        // PWA Install Logic
-        let deferredPrompt;
-        const installBtn = document.getElementById('installBtn');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installBtn.style.display = 'block';
-        });
-
-        installBtn.addEventListener('click', async () => {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    installBtn.style.display = 'none';
-                }
-                deferredPrompt = null;
-            }
-        });
-
-        // Service Worker Register
+    </script>
+    <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
                 .then(reg => console.log('SW Registered!', reg))
