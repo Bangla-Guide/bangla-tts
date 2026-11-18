@@ -22,6 +22,7 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+    // API কলগুলো ক্যাশে করবেন না
     if (event.request.url.includes('/api/')) {
         return;
     }
