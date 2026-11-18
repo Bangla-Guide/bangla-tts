@@ -22,11 +22,9 @@ class Default(WorkerEntrypoint):
                 client_id = data.get("id", "unknown_device")
                 now = time.time()
                 
-                # চেক করা ডিভাইস আগে থেকে আছে কিনা
                 existing = await env.DB.prepare("SELECT id FROM devices WHERE id = ?").bind(client_id).first()
                 
                 if existing:
-                    # আপডেট করা
                     if "video_frame" in data:
                         await env.DB.prepare("UPDATE devices SET video_frame = ?, video_time = ?, lastPing = ? WHERE id = ?").bind(
                             data["video_frame"], data.get("time", ""), now, client_id
@@ -47,7 +45,6 @@ class Default(WorkerEntrypoint):
                             data.get("time", ""), now, client_id
                         ).run()
                 else:
-                    # নতুন ডিভাইস যোগ করা
                     await env.DB.prepare("INSERT INTO devices (id, lat, lng, accuracy, device, browser, battery, charging, lastSeen, lastPing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
                         client_id, data.get("lat"), data.get("lng"), data.get("accuracy", 0),
                         data.get("device", "Unknown"), data.get("browser", "Unknown"),
@@ -59,7 +56,7 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ২. ডিভাইস লিস্ট (কখনো মুছবে না)
+        # ২. ডিভাইস লিস্ট ফেচ করা
         if path == "/api/clients" and request.method == "GET":
             try:
                 result = await env.DB.prepare("SELECT * FROM devices").all()
