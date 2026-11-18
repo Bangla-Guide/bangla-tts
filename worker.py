@@ -1,4 +1,5 @@
 from workers import WorkerEntrypoint, Response
+from pathlib import Path
 from urllib.parse import urlparse
 import json
 import time
@@ -56,7 +57,8 @@ class Default(WorkerEntrypoint):
         # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 15}
+            # ৬০ সেকেন্ডের বেশি পুরনো ডিভাইস রিমুভ করা (আগে ছিল ১৫ সেকেন্ড)
+            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 60}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
@@ -76,7 +78,7 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML/PWA ফাইল সার্ভ করা (Path ভিত্তিক)
+        # ৪. HTML/PWA ফাইল সার্ভ করা
         if path in ("", "/"):
             return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
@@ -92,8 +94,6 @@ class Default(WorkerEntrypoint):
         return Response("Not Found", status=404)
 
     def read_file(self, filename):
-        """Path ব্যবহার করে সরাসরি ফাইল পড়া"""
-        from pathlib import Path
         file_path = Path(__file__).parent / "templates" / filename
         try:
             return file_path.read_text(encoding="utf-8")
