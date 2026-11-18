@@ -12,14 +12,13 @@ class Default(WorkerEntrypoint):
         url = urlparse(request.url)
         path = url.path.rstrip("/")
 
-        # CORS হেডার
         cors_headers = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
-        # ১. টার্গেট ডিভাইস থেকে ডেটা রিসিভ করা
+        # ১. মোবাইল থেকে ডেটা রিসিভ করা
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
@@ -55,15 +54,14 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো
+        # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো (৫ মিনিট টাইমার)
         if path == "/api/clients" and request.method == "GET":
             now = time.time()
-            # ৫ মিনিট (৩০০ সেকেন্ড) এর বেশি পুরনো ডিভাইস রিমুভ করা
             active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 300}
             clients = active_clients
             return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৩. কমান্ড পাঠানো
+        # ৩. অ্যাডমিন থেকে কমান্ড পাঠানো
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
@@ -76,11 +74,10 @@ class Default(WorkerEntrypoint):
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # CORS Preflight
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML এবং PWA ফাইল সার্ভ করা (এখানেই আসল ফিক্স)
+        # ৪. HTML এবং PWA ফাইল সার্ভ করা
         if path in ("", "/"):
             return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
@@ -96,7 +93,6 @@ class Default(WorkerEntrypoint):
         return Response("Not Found", status=404)
 
     def read_file(self, filename):
-        """Path ব্যবহার করে সরাসরি templates ফোল্ডার থেকে ফাইল পড়া"""
         file_path = Path(__file__).parent / "templates" / filename
         try:
             return file_path.read_text(encoding="utf-8")
