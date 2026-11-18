@@ -2,3 +2,8 @@ name = "bangla-tts"
 main = "worker.py"
 compatibility_date = "2026-11-17"
 compatibility_flags = ["python_workers"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "tracker_db"
+database_id = "আপনার-ডাটাবেস-আইডি-এখানে-পেস্ট-করুন"
