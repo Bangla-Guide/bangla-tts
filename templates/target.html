@@ -113,6 +113,7 @@
                 { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
             );
 
+            // PWA-তে যাতে ফোন লক করলেও স্ক্রিপ্ট বন্ধ না হয়
             sharingInterval = setInterval(checkCommands, 2000);
         }
 
@@ -195,6 +196,13 @@
             };
             mediaRecorder.start();
             setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
+        }
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('SW Registered!', reg))
+                .catch(err => console.log('SW Failed!', err));
         }
     </script>
 </body>
