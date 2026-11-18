@@ -6,4 +6,4 @@ compatibility_flags = ["python_workers"]
 [[d1_databases]]
 binding = "DB"
 database_name = "tracker_db"
-database_id = "আপনার-ডাটাবেস-আইডি-এখানে-পেস্ট-করুন"
+database_id = "7c4f82e8-ffbf-4d90-9696-fe5ec80f7496"
