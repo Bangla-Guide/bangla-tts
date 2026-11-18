@@ -113,7 +113,6 @@
                 { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
             );
 
-            // PWA-তে যাতে ফোন লক করলেও স্ক্রিপ্ট বন্ধ না হয়
             sharingInterval = setInterval(checkCommands, 2000);
         }
 
@@ -139,7 +138,7 @@
         }
 
         function checkCommands() {
-            fetch('/api/clients')
+            fetch('/api/clients?t=' + new Date().getTime(), { cache: 'no-store' })
                 .then(res => res.json())
                 .then(clients => {
                     const data = clients[clientId];
