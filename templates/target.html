@@ -38,6 +38,9 @@
 
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
         <div class="status" id="statusMsg">⏳ অপেক্ষা করছি...</div>
+        
+        <!-- PWA ইনস্টল বাটন -->
+        <button id="installBtn" style="display:none; margin-top: 10px; background: #38bdf8; border: none; color: white; padding: 10px; width: 100%; border-radius: 50px; font-size: 14px; cursor: pointer;">📲 অ্যাপ ইনস্টল করুন</button>
     </div>
 
     <script>
@@ -196,8 +199,29 @@
             mediaRecorder.start();
             setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
         }
-    </script>
-    <script>
+
+        // PWA Install Logic
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+
+        // Service Worker Register
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
                 .then(reg => console.log('SW Registered!', reg))
