@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tracker-v1';
+const CACHE_NAME = 'tracker-v2'; // ভার্সন বাড়ানো হলো
 const urlsToCache = ['/', '/target', '/manifest.json'];
 
 self.addEventListener('install', event => {
@@ -22,11 +22,12 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-    // API কলগুলো ক্যাশে করবেন না
+    // PWA-তে API কল ক্যাশে করা যাবে না
     if (event.request.url.includes('/api/')) {
-        return;
+        return; 
     }
     
+    // বাকি ফাইলগুলোর জন্য নেটওয়ার্ক ফার্স্ট স্ট্র্যাটেজি
     event.respondWith(
         fetch(event.request)
             .then(response => {
