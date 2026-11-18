@@ -12,4 +12,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["worker*"]
-exclude = ["templates*", "node_modules*"]
+exclude = ["templates*", "node_modules*", "*.md", "*.sql"]
