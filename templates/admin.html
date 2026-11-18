@@ -91,7 +91,7 @@
         let selectedDeviceId = null;
 
         function fetchClients() {
-            fetch('/api/clients')
+            fetch('/api/clients?t=' + new Date().getTime(), { cache: 'no-store' })
                 .then(res => res.json())
                 .then(clients => {
                     const list = document.getElementById('deviceList');
