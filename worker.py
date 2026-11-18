@@ -6,7 +6,7 @@ import time
 clients = {}
 
 class Default(WorkerEntrypoint):
-    async def fetch(self, request, env):
+    async def fetch(self, request):
         global clients
         url = urlparse(request.url)
         path = url.path.rstrip("/")
@@ -76,6 +76,26 @@ class Default(WorkerEntrypoint):
         if request.method == "OPTIONS":
             return Response("", headers=cors_headers)
 
-        # ৪. HTML/PWA ফাইল সার্ভ করা (Static Assets থেকে)
-        # env প্যারামিটারটি এখন সঠিকভাবে পাওয়া যাচ্ছে
-        return await env.ASSETS.fetch(request)
+        # ৪. HTML/PWA ফাইল সার্ভ করা (Path ভিত্তিক)
+        if path in ("", "/"):
+            return Response(self.read_file("admin.html"), headers={"Content-Type": "text/html; charset=utf-8"})
+        
+        if path == "/target":
+            return Response(self.read_file("target.html"), headers={"Content-Type": "text/html; charset=utf-8"})
+        
+        if path == "/manifest.json":
+            return Response(self.read_file("manifest.json"), headers={"Content-Type": "application/json"})
+        
+        if path == "/service-worker.js":
+            return Response(self.read_file("service-worker.js"), headers={"Content-Type": "application/javascript"})
+
+        return Response("Not Found", status=404)
+
+    def read_file(self, filename):
+        """Path ব্যবহার করে সরাসরি ফাইল পড়া"""
+        from pathlib import Path
+        file_path = Path(__file__).parent / "templates" / filename
+        try:
+            return file_path.read_text(encoding="utf-8")
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
